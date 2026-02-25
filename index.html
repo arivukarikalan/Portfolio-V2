@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Portfolio</title>
+
+  <!-- =====================================================
+       FEATURE: External UI Libraries
+       PURPOSE:
+       - Bootstrap for layout & utilities
+       - Bootstrap Icons for navigation & actions
+       ===================================================== -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+
+  <!-- =====================================================
+       FEATURE: Application UI Styles
+       ===================================================== -->
+  <link href="css/ui.css" rel="stylesheet">
+  <link href="CSS/ui-theme.css" rel="stylesheet">
+</head>
+
+<body>
+
+<!-- =====================================================
+     FEATURE: Header Bar
+     - Page title
+     - Light / Dark mode toggle
+     ===================================================== -->
+     <div class="app-header">
+      <div class="app-title">Portfolio</div>
+      <div class="d-flex gap-2">
+        <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
+          🌙
+        </button>
+        <a href="settings.html" class="btn btn-sm btn-light" title="Settings">
+          <i class="bi bi-gear"></i>
+        </a>
+      </div>
+    </div>
+
+<!-- =====================================================
+     FEATURE: Dashboard Content
+     ===================================================== -->
+<div class="container mt-3">
+
+  <!-- Section title -->
+  <div class="section-title">Portfolio Dashboard</div>
+
+  <!-- =================================================
+       FEATURE: Dashboard Stats (2 cards per row)
+       ================================================= -->
+  <div class="stat-grid">
+
+    <!-- Total Invested -->
+    <div class="stat-card">
+      <div class="stat-label">Total Invested</div>
+      <div class="stat-value" id="dashInvested">₹0.00</div>
+    </div>
+
+    <!-- Total Profit / Loss -->
+    <div class="stat-card">
+      <div class="stat-label">Total P / L</div>
+      <div class="stat-value" id="dashPnL">₹0.00</div>
+    </div>
+
+  </div>
+
+  <!-- =================================================
+       FEATURE: Active Holdings Count
+       ================================================= -->
+  <div class="stat-card mt-3">
+    <div class="stat-label">Active Holdings</div>
+    <div class="stat-value" id="dashHoldings">0</div>
+  </div>
+
+  <!-- ================= DASHBOARD NAVIGATION ================= -->
+<div class="card mt-3" onclick="location.href='dashboard.html'" style="cursor:pointer">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <div class="section-title mb-1">Dashboard</div>
+      <div class="text-muted">
+        View month-wise, stock-wise & performance analytics
+      </div>
+    </div>
+    <i class="bi bi-chevron-right fs-4"></i>
+  </div>
+</div>
+
+</div>
+
+
+
+<!-- =====================================================
+     FEATURE: Bottom Navigation
+     - Fixed
+     - Safe padding (does not hide content)
+     ===================================================== -->
+     <nav class="bottom-nav">
+      <a class="active" href="index.html">
+        <i class="bi bi-grid"></i>
+        Home
+      </a>
+      <a  href="transactions.html">
+        <i class="bi bi-arrow-left-right"></i>
+        Txn
+      </a>
+      <a href="holdings.html">
+        <i class="bi bi-briefcase"></i>
+        Hold
+      </a>
+      <a href="pnl.html">
+        <i class="bi bi-bar-chart"></i>
+        P/L
+      </a>
+      <a href="insights.html">
+        <i class="bi bi-lightbulb"></i>
+        Insights
+      </a>
+      <a href="analytics.html">
+        <i class="bi bi-graph-up"></i>
+        Analytics
+      </a>
+    </nav>
+
+<!-- =====================================================
+     FEATURE: Script Includes
+     ===================================================== -->
+<script src="js/db.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/transactions.js"></script>
+
+<script>
+  /* =====================================================
+     FEATURE: Light / Dark Mode Toggle
+     ===================================================== */
+  function toggleTheme() {
+    document.body.classList.toggle("dark");
+    localStorage.setItem(
+      "theme",
+      document.body.classList.contains("dark") ? "dark" : "light"
+    );
+  }
+
+  if (localStorage.getItem("theme") === "dark") {
+    document.body.classList.add("dark");
+  }
+
+  /* =====================================================
+     FEATURE: Dashboard Data Loader
+     - Loads live values after DB is ready
+     ===================================================== */
+  openDB()
+    .then(seedSettings)
+    .then(loadDashboard);
+</script>
+
+</body>
+</html>

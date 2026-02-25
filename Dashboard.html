@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard</title>
+
+  <!-- ================= UI LIBS ================= -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+
+  <!-- ================= CHART.JS ================= -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- ================= APP STYLES ================= -->
+  <link href="css/ui.css" rel="stylesheet">
+  <link href="CSS/ui-theme.css" rel="stylesheet">
+</head>
+
+<body>
+
+<!-- ================= HEADER ================= -->
+<div class="app-header">
+  <div class="app-title">Dashboard</div>
+  <div class="d-flex gap-2">
+    <button onclick="toggleTheme()" class="btn btn-sm btn-light">🌙</button>
+    <a href="settings.html" class="btn btn-sm btn-light">
+      <i class="bi bi-gear"></i>
+    </a>
+  </div>
+</div>
+
+<!-- ================= CONTENT ================= -->
+<div class="container mt-3">
+
+  <!-- ================= RANGE SELECTOR ================= -->
+  <div class="card mb-3">
+    <div class="section-title">Time Range (Realised Data)</div>
+
+    <select id="dashRange" class="form-select">
+      <option value="1">Last 1 Month</option>
+      <option value="3">Last 3 Months</option>
+      <option value="6">Last 6 Months</option>
+      <option value="all">All Time</option>
+    </select>
+  </div>
+
+  <!-- ================= DASHBOARD SUMMARY ================= -->
+<div class="row g-2 mb-3">
+    <div class="col-4">
+      <div class="card text-center">
+        <div class="section-title">Invested</div>
+        <div id="dashInvested" class="fw-bold">₹0</div>
+      </div>
+    </div>
+  
+    <div class="col-4">
+      <div class="card text-center">
+        <div class="section-title">Holdings</div>
+        <div id="dashHoldings" class="fw-bold">0</div>
+      </div>
+    </div>
+  
+    <div class="col-4">
+      <div class="card text-center">
+        <div class="section-title">Net P/L</div>
+        <div id="dashNetPnL" class="fw-bold">₹0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MONTH-WISE P/L ================= -->
+  <div class="card mb-3">
+    <div class="section-title">Month-wise Profit / Loss</div>
+    <canvas id="monthlyChart" height="200"></canvas>
+  </div>
+
+  <!-- ================= STOCK PERFORMANCE ================= -->
+  <div class="card mb-3">
+    <div class="section-title">Stock-wise Performance</div>
+
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Stock</th>
+            <th>P/L (₹)</th>
+            <th>Trades</th>
+            <th>Win / Loss</th>
+          </tr>
+        </thead>
+        <tbody id="stockTable">
+          <!-- JS will render -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ================= BEST / WORST ================= -->
+  <div class="row g-2 mb-3">
+    <div class="col-6">
+      <div class="card text-success">
+        <div class="section-title">Best Performer</div>
+        <div id="bestStock">-</div>
+      </div>
+    </div>
+
+    <div class="col-6">
+      <div class="card text-danger">
+        <div class="section-title">Worst Performer</div>
+        <div id="worstStock">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= WIN / LOSS ================= -->
+  <div class="card mb-5">
+    <div class="section-title">Win / Loss Summary</div>
+
+    <div id="winLossSummary" class="text-center">
+      Trades: 0 | Wins: 0 | Losses: 0 | Win Rate: 0%
+    </div>
+  </div>
+
+</div>
+
+<!-- ================= BOTTOM NAV ================= -->
+<nav class="bottom-nav">
+  <a href="index.html"><i class="bi bi-grid"></i>Home</a>
+  <a href="transactions.html"><i class="bi bi-arrow-left-right"></i>Txn</a>
+  <a href="holdings.html"><i class="bi bi-briefcase"></i>Hold</a>
+  <a href="pnl.html"><i class="bi bi-bar-chart"></i>P/L</a>
+  <a class="active" href="dashboard.html"><i class="bi bi-speedometer2"></i>Dashboard</a>
+</nav>
+
+<!-- ================= SCRIPTS ================= -->
+<script src="js/db.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/transactions.js"></script>
+<script src="js/dashboard.js"></script>
+
+<script>
+  function toggleTheme() {
+    document.body.classList.toggle("dark");
+    localStorage.setItem(
+      "theme",
+      document.body.classList.contains("dark") ? "dark" : "light"
+    );
+  }
+
+  if (localStorage.getItem("theme") === "dark") {
+    document.body.classList.add("dark");
+  }
+
+  openDB()
+    .then(seedSettings)
+    .then(loadDashboardAnalytics);
+</script>
+
+</body>
+</html>

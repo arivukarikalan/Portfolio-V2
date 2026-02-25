@@ -1,0 +1,200 @@
+/* =========================================================
+   UI THEME LAYER (SAFE ADDITIVE)
+   PURPOSE:
+   - Visual polish only
+   - No layout overrides
+   - Finance-style cards & metrics
+   ========================================================= */
+
+/* ================= THEME VARIABLES ================= */
+:root {
+    --pt-primary: #2563eb;
+    --pt-success: #16a34a;
+    --pt-danger: #dc2626;
+    --pt-warning: #f59e0b;
+  
+    --pt-bg-soft: #f8fafc;
+    --pt-card-soft: #ffffff;
+    --pt-border-soft: #e5e7eb;
+  
+    --pt-text-muted: #6b7280;
+  }
+  
+  /* Dark mode compatibility */
+  body.dark {
+    --pt-bg-soft: #020617;
+    --pt-card-soft: #020617;
+    --pt-border-soft: #1e293b;
+    --pt-text-muted: #94a3b8;
+  }
+  
+  /* ================= FINANCE CARD ================= */
+  .finance-card {
+    background: var(--pt-card-soft);
+    border: 1px solid var(--pt-border-soft);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.04);
+  }
+  
+  /* ================= CARD HEADER ================= */
+  .finance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 8px;
+  }
+  
+  /* ================= META ROW ================= */
+  .meta-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--pt-text-muted);
+    margin-bottom: 10px;
+  }
+  
+  .meta-row span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  /* ================= VALUE METRICS ================= */
+  .value-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  
+  .metric {
+    flex: 1;
+    background: var(--pt-bg-soft);
+    border-radius: 10px;
+    padding: 8px;
+    text-align: center;
+  }
+  
+  .metric small {
+    font-size: 12px;
+    color: var(--pt-text-muted);
+  }
+  
+  .metric div {
+    font-weight: 600;
+    margin-top: 2px;
+  }
+  
+  /* Metric colors */
+  .metric.profit div {
+    color: var(--pt-success);
+  }
+  
+  .metric.loss div {
+    color: var(--pt-danger);
+  }
+  
+  .metric.fd div {
+    color: var(--pt-primary);
+  }
+  
+  .metric.inflation div {
+    color: var(--pt-warning);
+  }
+  
+  /* ================= STATUS ROW ================= */
+  .status-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  
+  .status-pill {
+    padding: 4px 10px;
+    font-size: 12px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .status-pill.success {
+    background: #dcfce7;
+    color: #166534;
+  }
+  
+  .status-pill.danger {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  
+  .status-pill.info {
+    background: #e0e7ff;
+    color: #3730a3;
+  }
+  
+  /* ================= SOFT LIST CARD ================= */
+  .soft-list-card {
+    background: var(--pt-card-soft);
+    border: 1px solid var(--pt-border-soft);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  
+  /* ================= BADGE ENHANCEMENT ================= */
+  .badge-soft {
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  
+  .badge-soft.buy {
+    background: #e0e7ff;
+    color: #3730a3;
+  }
+  
+  .badge-soft.sell {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  
+  /* ================= INTERACTIONS ================= */
+  .finance-card,
+  .soft-list-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  
+  .finance-card:hover,
+  .soft-list-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.06);
+  }
+  
+  /* ================= ICON COLOR HELPERS ================= */
+  .icon-profit {
+    color: var(--pt-success);
+  }
+  
+  .icon-loss {
+    color: var(--pt-danger);
+  }
+  
+  .icon-muted {
+    color: var(--pt-text-muted);
+  }
+  
+  /* ================= SECTION SPACING ================= */
+  .section-gap {
+    margin-top: 16px;
+  }
+  
+  /* ================= SMALL TEXT ================= */
+  .text-muted-soft {
+    color: var(--pt-text-muted);
+    font-size: 13px;
+  }

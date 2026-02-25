@@ -1,0 +1,167 @@
+/* ================= THEME ================= */
+:root {
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --text: #1e1e1e;
+  --muted: #6c757d;
+  --border: #e6e8eb;
+  --blue: #2f6df6;
+  --positive: #1aa260;
+  --negative: #d93025;
+}
+
+body.dark {
+  --bg: #0f1115;
+  --card: #161a20;
+  --text: #e6e6e6;
+  --muted: #9aa0a6;
+  --border: #2a2f36;
+}
+
+/* ================= BASE ================= */
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  margin: 0;
+  padding-bottom: 78px;
+  font-size: 15px;
+}
+
+.container {
+  max-width: 520px;
+}
+
+/* ================= HEADER ================= */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* ================= CARDS ================= */
+.card {
+  background: var(--card);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.stat-card {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* ================= FORM ================= */
+.form-control, .form-select {
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+}
+
+.btn-primary {
+  height: 46px;
+  border-radius: 14px;
+  background: var(--blue);
+  border: none;
+  font-weight: 600;
+}
+
+/* ================= LIST ================= */
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 18px 0 10px;
+}
+
+.txn-card {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.txn-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.txn-name {
+  font-weight: 600;
+}
+
+.txn-sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.txn-actions button {
+  margin-left: 6px;
+}
+
+/* ================= P/L ================= */
+.profit { color: var(--positive); }
+.loss { color: var(--negative); }
+
+/* ================= BOTTOM NAV ================= */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.bottom-nav a {
+  text-decoration: none;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.bottom-nav i {
+  font-size: 22px;
+  display: block;
+}
+
+.bottom-nav a.active {
+  color: var(--blue);
+}
