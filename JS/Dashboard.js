@@ -299,12 +299,22 @@ function renderMonthlyContributionTable(contributionMap) {
     return;
   }
 
-  tbody.innerHTML = labels.map(label => `
+  const rows = labels.map(label => `
     <tr>
       <td>${formatMonthId(label)}</td>
       <td class="text-end text-primary fw-semibold">\u20B9${contributionMap[label].toFixed(2)}</td>
     </tr>
-  `).join("");
+  `);
+
+  const total = labels.reduce((a, label) => a + contributionMap[label], 0);
+  rows.push(`
+    <tr class="fw-bold">
+      <td>Total</td>
+      <td class="text-end">\u20B9${total.toFixed(2)}</td>
+    </tr>
+  `);
+
+  tbody.innerHTML = rows.join("");
 }
 
 /* =========================================================

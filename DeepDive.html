@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Deep Dive</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="Assets/Icons/bar-chart.png">
+  <link href="CSS/ui.css" rel="stylesheet">
+  <link href="CSS/ui-theme.css" rel="stylesheet">
+</head>
+<body class="page-deepdive">
+
+<div class="app-header">
+  <div class="app-title">Deep Dive</div>
+  <div class="d-flex gap-2">
+    <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
+      <i class="bi bi-moon-stars"></i>
+    </button>
+    <a href="index.html" class="btn btn-sm btn-light" title="Home">
+      <i class="bi bi-house"></i>
+    </a>
+  </div>
+</div>
+
+<div class="container page-shell">
+  <section class="hero">
+    <h2 class="hero-title">Portfolio Deep Dive</h2>
+    <p class="hero-sub">Behavior-level checks from your transaction history: tight-gap buying, concentration pressure, risk flags, and long-term no-return positions.</p>
+  </section>
+
+  <div class="stat-grid" id="deepSummary"></div>
+
+  <section class="panel mt-3">
+    <div class="panel-head">
+      <h3 class="panel-title"><i class="bi bi-exclamation-circle"></i> Unwanted Buys</h3>
+    </div>
+    <div class="panel-body tight">
+      <div class="tiny-label mb-2">Unwanted buy = consecutive buys in a very small price gap (<= 2.5%).</div>
+      <div id="unwantedBuysList"></div>
+    </div>
+  </section>
+
+  <section class="panel mt-3">
+    <div class="panel-head">
+      <h3 class="panel-title"><i class="bi bi-pie-chart"></i> Concentration Required</h3>
+    </div>
+    <div class="panel-body tight">
+      <div id="concentrationList"></div>
+    </div>
+  </section>
+
+  <section class="panel mt-3">
+    <div class="panel-head">
+      <h3 class="panel-title"><i class="bi bi-shield-exclamation"></i> Stocks Under Risk</h3>
+    </div>
+    <div class="panel-body tight">
+      <div id="riskList"></div>
+    </div>
+  </section>
+
+  <section class="panel mt-3">
+    <div class="panel-head">
+      <h3 class="panel-title"><i class="bi bi-hourglass-split"></i> Long Term No Return</h3>
+    </div>
+    <div class="panel-body tight">
+      <div id="noReturnList"></div>
+    </div>
+  </section>
+</div>
+
+<nav class="bottom-nav">
+  <a href="index.html">
+    <i class="bi bi-grid"></i>
+    Home
+  </a>
+  <a href="Transactions.html">
+    <i class="bi bi-arrow-left-right"></i>
+    Txn
+  </a>
+  <a href="Holdings.html">
+    <i class="bi bi-briefcase"></i>
+    Hold
+  </a>
+  <a href="Pnl.html">
+    <i class="bi bi-bar-chart"></i>
+    P/L
+  </a>
+  <a class="active" href="Insights.html">
+    <i class="bi bi-lightbulb"></i>
+    Insights
+  </a>
+</nav>
+
+<script src="JS/Db.js"></script>
+<script src="JS/Settings.js"></script>
+<script src="JS/DeepDive.js"></script>
+
+<script>
+  function toggleTheme() {
+    document.body.classList.toggle("dark");
+    localStorage.setItem(
+      "theme",
+      document.body.classList.contains("dark") ? "dark" : "light"
+    );
+  }
+
+  if (localStorage.getItem("theme") === "dark") {
+    document.body.classList.add("dark");
+  }
+
+  openDB()
+    .then(seedSettings)
+    .then(loadDeepDive);
+</script>
+
+</body>
+</html>

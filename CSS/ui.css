@@ -4,6 +4,7 @@
 :root {
   --bg: #f3f7fb;
   --card: #ffffff;
+  --card-soft: #f8fbff;
   --text: #0f172a;
   --muted: #64748b;
   --border: #dbe4ef;
@@ -18,6 +19,7 @@
 body.dark {
   --bg: #070f1c;
   --card: #101b30;
+  --card-soft: #0d1729;
   --text: #e7edf7;
   --muted: #9fb0c9;
   --border: #2a3b58;
@@ -38,13 +40,15 @@ body {
   margin: 0;
   font-family: "Manrope", "Segoe UI", sans-serif;
   font-size: 14px;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
   color: var(--text);
   background: var(--bg);
   padding-bottom: 92px;
 }
 
 .container {
-  max-width: 560px;
+  max-width: 620px;
   padding-left: 12px;
   padding-right: 12px;
 }
@@ -57,10 +61,11 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: calc(9px + env(safe-area-inset-top, 0px)) 12px 10px;
-  background: color-mix(in oklab, var(--card) 94%, transparent);
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px;
+  background: color-mix(in oklab, var(--card) 95%, transparent);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(8px);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
 }
 
 .app-title {
@@ -74,8 +79,8 @@ body {
   background: var(--card);
   color: var(--text);
   border-radius: 12px;
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -98,21 +103,24 @@ body {
 }
 
 .stat-card {
-  background: linear-gradient(180deg, color-mix(in oklab, var(--card) 96%, #dbeafe), var(--card));
+  background: linear-gradient(180deg, color-mix(in oklab, var(--card) 90%, #dbeafe), var(--card));
   border-radius: 16px;
   padding: 12px;
   border: 1px solid var(--border);
+  min-height: 86px;
 }
 
 .stat-label {
   font-size: 12px;
   color: var(--muted);
+  font-weight: 700;
 }
 
 .stat-value {
   margin-top: 4px;
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 /* ================= FORM ================= */
@@ -125,10 +133,10 @@ body {
 
 .form-control,
 .form-select {
-  height: 44px;
+  height: 43px;
   border-radius: var(--radius-control);
   border: 1px solid var(--border);
-  background: var(--card);
+  background: color-mix(in oklab, var(--card) 94%, var(--card-soft));
   color: var(--text);
   font-size: 14px;
 }
@@ -145,7 +153,7 @@ body {
 }
 
 .btn-primary {
-  min-height: 44px;
+  min-height: 42px;
   border: 0;
   background: linear-gradient(145deg, #2e8bff, var(--blue));
 }
@@ -163,11 +171,11 @@ body {
 }
 
 .txn-card {
-  background: var(--card);
+  background: color-mix(in oklab, var(--card) 94%, var(--card-soft));
   border-radius: 15px;
   border: 1px solid var(--border);
   margin-bottom: 8px;
-  padding: 10px;
+  padding: 11px;
 }
 
 .txn-top {
@@ -179,7 +187,7 @@ body {
 
 .txn-name {
   font-weight: 800;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .txn-sub {
@@ -259,10 +267,10 @@ body {
   z-index: 60;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   overflow-x: auto;
   white-space: nowrap;
-  padding: 7px 8px calc(7px + env(safe-area-inset-bottom, 0px));
+  padding: 7px 8px calc(8px + env(safe-area-inset-bottom, 0px));
   background: color-mix(in oklab, var(--card) 96%, transparent);
   border-top: 1px solid var(--border);
   backdrop-filter: blur(8px);
@@ -281,12 +289,12 @@ body {
   font-size: 10px;
   font-weight: 700;
   padding: 4px 3px;
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
 .bottom-nav i {
   display: block;
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.1;
   margin-bottom: 2px;
 }
@@ -300,7 +308,7 @@ body {
 .toast-host {
   position: fixed;
   left: 50%;
-  bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  top: calc(10px + env(safe-area-inset-top, 0px));
   transform: translateX(-50%);
   z-index: 1000;
   width: min(92vw, 420px);
@@ -362,5 +370,16 @@ body.dark .txn-card {
 
   .stat-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 768px) {
+  .container {
+    max-width: 760px;
+  }
+
+  .app-header {
+    padding-left: 18px;
+    padding-right: 18px;
   }
 }

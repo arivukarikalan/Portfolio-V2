@@ -19,18 +19,55 @@ function initTransactionFilters() {
   if (!from || !to) return;
 
   const today = new Date();
-  const lastWeek = new Date();
-  lastWeek.setDate(today.getDate() - 7);
+  const last3Months = new Date();
+  last3Months.setMonth(today.getMonth() - 3);
 
-  from.value = lastWeek.toISOString().split("T")[0];
+  from.value = last3Months.toISOString().split("T")[0];
   to.value = today.toISOString().split("T")[0];
+}
+
+function normalizeStockName(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
+function parseDateLocal(dateStr) {
+  const parts = String(dateStr || "").split("-");
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
+  if (!y || !m || !d) return new Date(dateStr);
+  return new Date(y, m - 1, d);
+}
+
+function resolveTxnBrokerage(txn, settings) {
+  const raw = Number(txn.brokerage);
+  if (raw > 0) return raw;
+  return calculateBrokerage(txn.type, Number(txn.qty), settings);
+}
+
+function refreshStockOptions() {
+  const list = document.getElementById("stockOptions");
+  if (!list) return;
+
+  db.transaction("transactions", "readonly")
+    .objectStore("transactions")
+    .getAll().onsuccess = e => {
+      const names = Array.from(
+        new Set((e.target.result || []).map(t => normalizeStockName(t.stock)).filter(Boolean))
+      ).sort();
+
+      list.innerHTML = names.map(n => `<option value="${n}"></option>`).join("");
+    };
 }
 
 /* =========================================================
    FEATURE 1: BROKERAGE CALCULATION
    RULES:
-   - BUY  → % brokerage only
-   - SELL → % brokerage + DP charge (once per sell)
+   - BUY  -> % brokerage only
+   - SELL -> % brokerage + DP charge (once per sell)
    ========================================================= */
    function calculateBrokerage(type, qty, settings) {
     if (type === "BUY") {
@@ -51,7 +88,14 @@ function initTransactionFilters() {
     if (!form) return;
   
     const dateInput = document.getElementById("txnDate");
+    const stockInputEl = document.getElementById("stockInput");
     dateInput.value = new Date().toISOString().split("T")[0];
+    if (stockInputEl) {
+      stockInputEl.addEventListener("blur", () => {
+        stockInputEl.value = normalizeStockName(stockInputEl.value);
+      });
+    }
+    refreshStockOptions();
   
     form.onsubmit = e => {
       e.preventDefault();
@@ -59,7 +103,7 @@ function initTransactionFilters() {
       const editId = editTxnId.value;
       const type = txnType.value;
       const date = dateInput.value;
-      const stock = stockInput.value.trim();
+      const stock = normalizeStockName(stockInput.value);
       const qty = Number(qtyInput.value);
       const price = Number(priceInput.value);
   
@@ -101,6 +145,7 @@ function initTransactionFilters() {
           calculateHoldings();
           calculatePnL();
           loadDashboard();
+          refreshStockOptions();
 
           if (typeof showToast === "function") {
             showToast(editId ? "Transaction updated successfully" : "Transaction saved successfully");
@@ -202,7 +247,7 @@ function bindFilterEvents() {
         editTxnId.value = t.id;
         txnType.value = t.type;
         txnDate.value = t.date;
-        stockInput.value = t.stock;
+        stockInput.value = normalizeStockName(t.stock);
         qtyInput.value = t.qty;
         priceInput.value = t.price;
 
@@ -223,6 +268,7 @@ function bindFilterEvents() {
       calculateHoldings();
       calculatePnL();
       loadDashboard();
+      refreshStockOptions();
 
       if (typeof showToast === "function") {
         showToast("Transaction deleted successfully");
@@ -248,11 +294,14 @@ function bindFilterEvents() {
         );
   
         const map = {};
-  
+
         txns.forEach(t => {
-          map[t.stock] ??= { lots: [], firstBuy: t.date };
-  
+          map[t.stock] ??= { lots: [], cycleFirstBuy: null };
+
           if (t.type === "BUY") {
+            if (map[t.stock].lots.length === 0) {
+              map[t.stock].cycleFirstBuy = t.date;
+            }
             map[t.stock].lots.push({
               qty: t.qty,
               price: t.price,
@@ -282,7 +331,7 @@ function bindFilterEvents() {
             0
           );
           const days = Math.floor(
-            (new Date() - new Date(map[s].firstBuy)) / 86400000
+            (new Date() - parseDateLocal(map[s].cycleFirstBuy)) / 86400000
           );
   
           holdingsList.innerHTML += `
@@ -306,72 +355,76 @@ function bindFilterEvents() {
   
   
   /* =========================================================
-     FEATURE 5: PROFIT & LOSS (FIFO – REALISED)
+     FEATURE 5: PROFIT & LOSS (FIFO - REALISED)
      - Independent sell calculation
      - Accurate brokerage & DP handling
      ========================================================= */
-  function calculatePnL() {
-    const pnlList = document.getElementById("pnlList");
-    if (!pnlList) return;
-  
+function calculatePnL() {
+  const pnlList = document.getElementById("pnlList");
+  if (!pnlList) return;
+
+  getSettings(settings => {
     db.transaction("transactions", "readonly")
       .objectStore("transactions")
       .getAll().onsuccess = e => {
         const txns = e.target.result.sort(
           (a, b) => new Date(a.date) - new Date(b.date)
         );
-  
+
         const fifo = {};
         const result = [];
-  
+
         txns.forEach(t => {
           fifo[t.stock] ??= [];
-  
+
           if (t.type === "BUY") {
+            const buyBrkg = resolveTxnBrokerage(t, settings);
             fifo[t.stock].push({
               qty: t.qty,
               price: t.price,
-              brokeragePerUnit: t.brokerage / t.qty
+              brokeragePerUnit: buyBrkg / t.qty
             });
           } else {
             let sellQty = t.qty;
             let buyCost = 0;
             let buyBrokerage = 0;
-  
+
             while (sellQty > 0 && fifo[t.stock].length) {
               const lot = fifo[t.stock][0];
               const used = Math.min(lot.qty, sellQty);
-  
+
               buyCost += used * lot.price;
               buyBrokerage += used * lot.brokeragePerUnit;
-  
+
               lot.qty -= used;
               sellQty -= used;
               if (lot.qty === 0) fifo[t.stock].shift();
             }
-  
+
             const sellValue = t.qty * t.price;
-  
+            const sellBrokerage = resolveTxnBrokerage(t, settings);
+
             result.push({
               stock: t.stock,
-              date: t.date,          // ✅ FIX: add sell date
+              date: t.date,
               qty: t.qty,
               sellPrice: t.price,
               buyCost,
               buyBrokerage,
-              sellBrokerage: t.brokerage,
+              sellBrokerage,
               net:
                 sellValue -
                 buyCost -
                 buyBrokerage -
-                t.brokerage
+                sellBrokerage
             });
           }
         });
-  
+
         applyPnLFilters(result);
       };
-  }
+  });
+}
 
   /* ================= P/L FILTER + GROUP ================= */
 function applyPnLFilters(data) {
@@ -412,6 +465,9 @@ function renderGroupedPnL(data) {
   Object.keys(grouped).forEach(stock => {
     const txns = grouped[stock];
     const totalNet = txns.reduce((a, t) => a + t.net, 0);
+    const totalBuyBrkg = txns.reduce((a, t) => a + t.buyBrokerage, 0);
+    const totalSellBrkg = txns.reduce((a, t) => a + t.sellBrokerage, 0);
+    const totalTrades = txns.length;
     const cls = totalNet >= 0 ? "profit" : "loss";
 
     const id = `pnl-${stock.replace(/\s+/g, "")}`;
@@ -419,11 +475,13 @@ function renderGroupedPnL(data) {
     pnlList.innerHTML += `
       <div class="txn-card">
         <div class="pnl-header" onclick="togglePnL('${id}')">
-          <div>
-            <div class="txn-name ${cls}">${stock}</div>
-            <div class="txn-sub">
-              Net P/L: ₹${totalNet.toFixed(2)}
-            </div>
+          <div class="left-col">
+            <div class="txn-name">${stock}</div>
+            <div class="tiny-label">Realised Trades: ${totalTrades}</div>
+          </div>
+          <div class="right-col">
+            <div class="metric-strong ${cls}">₹${totalNet.toFixed(2)}</div>
+            <div class="tiny-label">Brokerage: ₹${(totalBuyBrkg + totalSellBrkg).toFixed(2)}</div>
           </div>
           <i class="bi bi-chevron-down"></i>
         </div>
@@ -431,13 +489,22 @@ function renderGroupedPnL(data) {
         <div id="${id}" class="pnl-details" style="display:none">
           ${txns.map(t => `
             <div class="pnl-txn">
-              <small>
-                ${t.date} | Qty ${t.qty} @ ₹${t.sellPrice}<br>
-                Buy Cost: ₹${t.buyCost.toFixed(2)} |
-                Buy Brkg: ₹${t.buyBrokerage.toFixed(2)}<br>
-                Sell Brkg: ₹${t.sellBrokerage.toFixed(2)}<br>
-                <b>Net P/L: ₹${t.net.toFixed(2)}</b>
-              </small>
+              <div class="split-row">
+                <div class="left-col tiny-label">${t.date} | Qty ${t.qty} @ ₹${t.sellPrice}</div>
+                <div class="right-col pnl-net ${t.net >= 0 ? "profit" : "loss"}">₹${t.net.toFixed(2)}</div>
+              </div>
+              <div class="split-row pnl-kv">
+                <div class="left-col">Buy Cost</div>
+                <div class="right-col">₹${t.buyCost.toFixed(2)}</div>
+              </div>
+              <div class="split-row pnl-kv">
+                <div class="left-col">Buy Brkg</div>
+                <div class="right-col">₹${t.buyBrokerage.toFixed(2)}</div>
+              </div>
+              <div class="split-row pnl-kv">
+                <div class="left-col">Sell Brkg</div>
+                <div class="right-col">₹${t.sellBrokerage.toFixed(2)}</div>
+              </div>
             </div>
           `).join("")}
         </div>
@@ -461,10 +528,10 @@ function initPnLFilters() {
   if (!from || !to) return;
 
   const today = new Date();
-  const lastMonth = new Date();
-  lastMonth.setDate(today.getDate() - 30);
+  const last3Months = new Date();
+  last3Months.setMonth(today.getMonth() - 3);
 
-  from.value = lastMonth.toISOString().split("T")[0];
+  from.value = last3Months.toISOString().split("T")[0];
   to.value = today.toISOString().split("T")[0];
 }
   
@@ -479,31 +546,42 @@ function loadDashboard() {
   const investedEl = document.getElementById("dashInvested");
   const pnlEl = document.getElementById("dashPnL");
   const holdingsEl = document.getElementById("dashHoldings");
+  const brokerageEl = document.getElementById("dashBrokerage");
 
   if (!investedEl || !pnlEl || !holdingsEl) return;
 
-  db.transaction("transactions", "readonly")
-    .objectStore("transactions")
-    .getAll().onsuccess = e => {
+  getSettings(settings => {
+    db.transaction("transactions", "readonly")
+      .objectStore("transactions")
+      .getAll().onsuccess = e => {
 
       const txns = e.target.result.sort(
         (a, b) => new Date(a.date) - new Date(b.date)
       );
 
       const map = {};
+      const brokerageByStock = {};
       let totalPnL = 0;
+      let totalBrokerage = 0;
 
       /* =============================================
          STEP 1: Build FIFO Holdings + Realised P/L
          ============================================= */
       txns.forEach(t => {
         map[t.stock] ??= { lots: [] };
+        const txnBrokerage = resolveTxnBrokerage(t, settings);
+        totalBrokerage += txnBrokerage;
+        brokerageByStock[t.stock] ??= { buy: 0, sell: 0, total: 0 };
+        if (t.type === "BUY") brokerageByStock[t.stock].buy += txnBrokerage;
+        else brokerageByStock[t.stock].sell += txnBrokerage;
+        brokerageByStock[t.stock].total += txnBrokerage;
 
         if (t.type === "BUY") {
           map[t.stock].lots.push({
             qty: t.qty,
             price: t.price,
-            brokeragePerUnit: t.brokerage / t.qty
+            brokeragePerUnit: txnBrokerage / t.qty,
+            date: t.date
           });
         } else {
           let sellQty = t.qty;
@@ -531,7 +609,7 @@ function loadDashboard() {
             sellValue -
             buyCost -
             buyBrokerage -
-            t.brokerage;
+            txnBrokerage;
 
           totalPnL += net;
         }
@@ -561,5 +639,79 @@ function loadDashboard() {
       investedEl.innerText = `₹${totalInvested.toFixed(2)}`;
       pnlEl.innerText = `₹${totalPnL.toFixed(2)}`;
       holdingsEl.innerText = activeHoldings;
+      if (brokerageEl) brokerageEl.innerText = `₹${totalBrokerage.toFixed(2)}`;
+
+      const brkgBody = document.getElementById("brokerageBreakdownBody");
+      if (brkgBody) {
+        const rows = Object.keys(brokerageByStock)
+          .map(stock => ({ stock, ...brokerageByStock[stock] }))
+          .filter(r => r.total > 0)
+          .sort((a, b) => b.total - a.total);
+
+        brkgBody.innerHTML = rows.length
+          ? rows.map(r => `
+              <tr>
+                <td>${r.stock}</td>
+                <td class="text-end">₹${r.buy.toFixed(2)}</td>
+                <td class="text-end">₹${r.sell.toFixed(2)}</td>
+                <td class="text-end fw-semibold">₹${r.total.toFixed(2)}</td>
+              </tr>
+            `).join("")
+          : `<tr><td colspan="4" class="text-center text-muted">No brokerage data</td></tr>`;
+      }
+
+      const topHoldingsEl = document.getElementById("topHoldingsList");
+      const homeInsightEl = document.getElementById("homeInsight");
+      if (topHoldingsEl && homeInsightEl) {
+        const rows = Object.keys(map)
+          .map(stock => {
+            const lots = map[stock].lots;
+            if (!lots.length) return null;
+            const invested = lots.reduce(
+              (a, l) => a + l.qty * (l.price + l.brokeragePerUnit),
+              0
+            );
+            const firstDate = lots[0].date;
+            const days = Math.floor((new Date() - parseDateLocal(firstDate)) / 86400000);
+            return { stock, invested, days };
+          })
+          .filter(Boolean)
+          .sort((a, b) => b.invested - a.invested);
+
+        const top2 = rows.slice(0, 2);
+        if (!top2.length) {
+          topHoldingsEl.innerHTML = `<div class="text-muted">No active holdings</div>`;
+          homeInsightEl.textContent = "";
+        } else {
+          topHoldingsEl.innerHTML = top2.map(r => `
+            <div class="txn-card">
+              <div class="split-row">
+                <div class="left-col">
+                  <div class="txn-name">${r.stock}</div>
+                  <div class="txn-sub">Hold Days: ${r.days}</div>
+                </div>
+                <div class="right-col">
+                  <div class="metric-strong text-primary">₹${r.invested.toFixed(2)}</div>
+                  <div class="tiny-label">Invested</div>
+                </div>
+              </div>
+            </div>
+          `).join("");
+
+          const top2Invested = top2.reduce((a, r) => a + r.invested, 0);
+          const concentration = totalInvested > 0 ? (top2Invested / totalInvested) * 100 : 0;
+          homeInsightEl.textContent =
+            `Top 2 concentration: ${concentration.toFixed(2)}% of active invested capital.`;
+        }
+      }
     };
+  });
 }
+
+function toggleBrokerageBreakdown() {
+  const panel = document.getElementById("brokeragePanel");
+  if (!panel) return;
+  panel.style.display = panel.style.display === "none" ? "block" : "none";
+}
+
+

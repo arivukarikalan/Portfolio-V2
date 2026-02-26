@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -70,15 +70,59 @@
       <div class="stat-value" id="dashPnL">&#8377;0.00</div>
     </div>
 
+    <div class="stat-card">
+      <div class="stat-label">Active Holdings</div>
+      <div class="stat-value" id="dashHoldings">0</div>
+    </div>
+
+    <div class="stat-card metric-link" onclick="toggleBrokerageBreakdown()">
+      <div class="stat-label">Brokerage Spent</div>
+      <div class="stat-value" id="dashBrokerage">&#8377;0.00</div>
+      <div class="tiny-label mt-1">Tap for stock-wise split</div>
+    </div>
+
   </div>
 
-  <!-- =================================================
-       FEATURE: Active Holdings Count
-       ================================================= -->
-  <div class="stat-card mt-3">
-    <div class="stat-label">Active Holdings</div>
-    <div class="stat-value" id="dashHoldings">0</div>
-  </div>
+  <section class="panel mt-3" id="brokeragePanel" style="display:none">
+    <div class="panel-head">
+      <h3 class="panel-title"><i class="bi bi-receipt"></i> Brokerage Breakdown</h3>
+    </div>
+    <div class="panel-body tight">
+      <div class="table-shell">
+        <table class="table mini-table">
+          <thead>
+            <tr>
+              <th>Stock</th>
+              <th class="text-end">Buy Brkg</th>
+              <th class="text-end">Sell Brkg</th>
+              <th class="text-end">Total</th>
+            </tr>
+          </thead>
+          <tbody id="brokerageBreakdownBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel mt-3">
+    <div class="panel-head">
+      <h3 class="panel-title"><i class="bi bi-stars"></i> Top Holdings Insight</h3>
+    </div>
+    <div class="panel-body tight">
+      <div id="topHoldingsList" class="stack-gap"></div>
+      <div id="homeInsight" class="text-muted mt-2 small"></div>
+    </div>
+  </section>
+
+  <section class="panel mt-3" onclick="location.href='DeepDive.html'" style="cursor:pointer">
+    <div class="panel-body d-flex justify-content-between align-items-center">
+      <div>
+        <div class="section-title mt-0 mb-1">Deep Dive</div>
+        <div class="text-muted">Find unwanted buys, risky concentration, and no-return positions</div>
+      </div>
+      <i class="bi bi-chevron-right fs-4"></i>
+    </div>
+  </section>
 
   <!-- ================= DASHBOARD NAVIGATION ================= -->
 <div class="panel mt-3" onclick="location.href='Dashboard.html'" style="cursor:pointer">
