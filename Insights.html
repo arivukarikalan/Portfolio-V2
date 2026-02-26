@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Insights</title>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- =====================================================
        FEATURE: External UI Libraries
        ===================================================== -->
@@ -17,7 +17,7 @@
   <link href="CSS/ui-theme.css" rel="stylesheet">
 </head>
 
-<body>
+<body class="page-insights">
 
 <!-- =====================================================
      FEATURE: Header Bar
@@ -26,9 +26,9 @@
         <div class="app-title">Insights</div>
         <div class="d-flex gap-2">
           <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
-            🌙
+            <i class="bi bi-moon-stars"></i>
           </button>
-          <a href="settings.html" class="btn btn-sm btn-light" title="Settings">
+          <a href="Settings.html" class="btn btn-sm btn-light" title="Settings">
             <i class="bi bi-gear"></i>
           </a>
         </div>
@@ -37,19 +37,40 @@
 <!-- =====================================================
      FEATURE: Insights Content
      ===================================================== -->
-<div class="container mt-3">
+<div class="container page-shell">
+
+  <section class="hero">
+    <h2 class="hero-title">Portfolio Insights</h2>
+    <p class="hero-sub">Read your allocation pressure and average-down readiness in one view.</p>
+  </section>
 
   <!-- =================================================
        FEATURE: Portfolio Allocation
        ================================================= -->
-  <div class="section-title">Portfolio Allocation</div>
-  <div id="allocationList"></div>
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-pie-chart"></i> Portfolio Allocation</h3>
+      </div>
+    </div>
+    <div class="panel-body tight">
+      <div id="allocationList"></div>
+    </div>
+  </section>
 
   <!-- =================================================
        FEATURE: Average Down Indicators
        ================================================= -->
-  <div class="section-title mt-4">Average Down Levels</div>
-  <div id="avgDownList"></div>
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-arrow-down-circle"></i> Average Down Levels</h3>
+      </div>
+    </div>
+    <div class="panel-body tight">
+      <div id="avgDownList"></div>
+    </div>
+  </section>
 
 </div>
 
@@ -61,19 +82,19 @@
           <i class="bi bi-grid"></i>
           Home
         </a>
-        <a href="transactions.html">
+        <a href="Transactions.html">
           <i class="bi bi-arrow-left-right"></i>
           Txn
         </a>
-        <a href="holdings.html">
+        <a href="Holdings.html">
           <i class="bi bi-briefcase"></i>
           Hold
         </a>
-        <a href="pnl.html">
+        <a href="Pnl.html">
           <i class="bi bi-bar-chart"></i>
           P/L
         </a>
-        <a class="active" href="insights.html">
+        <a class="active" href="Insights.html">
           <i class="bi bi-lightbulb"></i>
           Insights
         </a>
@@ -86,10 +107,10 @@
 <!-- =====================================================
      FEATURE: Script Includes
      ===================================================== -->
-     <script src="js/db.js"></script>
-     <script src="js/settings.js"></script>
-     <script src="js/transactions.js"></script>
-     <script src="js/insights.js"></script>
+     <script src="JS/Db.js"></script>
+     <script src="JS/Settings.js"></script>
+     <script src="JS/Transactions.js"></script>
+     <script src="JS/Insights.js"></script>
 
 <script>
   /* =====================================================
@@ -117,3 +138,4 @@
 
 </body>
 </html>
+

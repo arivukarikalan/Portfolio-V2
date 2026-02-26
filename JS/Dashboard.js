@@ -307,12 +307,12 @@ function renderDashboardSummary(txns, pnlData) {
       DRILL-DOWN NAVIGATION
       ========================================================= */
    function drillDownStock(stock) {
-     location.href = `pnl.html?stock=${encodeURIComponent(stock)}`;
+     location.href = `Pnl.html?stock=${encodeURIComponent(stock)}`;
    }
    
    function drillDownMonth(label) {
      const [month, year] = label.split(" ");
-     location.href = `pnl.html?month=${month}&year=${year}`;
+     location.href = `Pnl.html?month=${month}&year=${year}`;
    }
    
    /* =========================================================

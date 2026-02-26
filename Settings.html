@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Settings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="Assets/Icons/bar-chart.png">
   <!-- UI Libraries -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -13,21 +14,31 @@
   <link href="CSS/ui-theme.css" rel="stylesheet">
 </head>
 
-<body>
+<body class="page-settings">
 
 <!-- ================= HEADER ================= -->
 <div class="app-header">
   <div class="app-title">Settings</div>
   <div class="d-flex gap-2">
-    <button onclick="toggleTheme()" class="btn btn-sm btn-light">🌙</button>
+    <button onclick="toggleTheme()" class="btn btn-sm btn-light"><i class="bi bi-moon-stars"></i></button>
   </div>
 </div>
 
-<div class="container mt-3">
+<div class="container page-shell">
+
+  <section class="hero">
+    <h2 class="hero-title">Control Center</h2>
+    <p class="hero-sub">Tune brokerage, risk rules, assumptions, and data backup in one place.</p>
+  </section>
 
   <!-- ================= BROKERAGE SETTINGS ================= -->
-  <div class="card">
-    <div class="section-title">Brokerage & Charges</div>
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-percent"></i> Brokerage & Charges</h3>
+      </div>
+    </div>
+    <div class="panel-body">
 
     <div class="row g-3">
       <div class="col-6">
@@ -42,7 +53,7 @@
       </div>
 
       <div class="col-12">
-        <label class="form-label">DP Charge (₹ per sell)</label>
+        <label class="form-label">DP Charge (&#8377; per sell)</label>
         <input id="dpCharge" type="number" step="0.01" class="form-control">
       </div>
     </div>
@@ -51,14 +62,20 @@
       Save Brokerage Settings
     </button>
   </div>
+  </section>
 
   <!-- ================= PORTFOLIO RULES ================= -->
-  <div class="card mt-3">
-    <div class="section-title">Portfolio Rules</div>
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-shield-check"></i> Portfolio Rules</h3>
+      </div>
+    </div>
+    <div class="panel-body">
 
     <div class="row g-3">
       <div class="col-6">
-        <label class="form-label">Portfolio Size (₹)</label>
+        <label class="form-label">Portfolio Size (&#8377;)</label>
         <input id="portfolioSize" type="number" class="form-control">
       </div>
 
@@ -73,10 +90,16 @@
       Save Portfolio Rules
     </button>
   </div>
+  </section>
 
   <!-- ================= AVERAGE DOWN RULES ================= -->
-  <div class="card mt-3 mb-5">
-    <div class="section-title">Average Down Levels</div>
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-layers"></i> Average Down Levels</h3>
+      </div>
+    </div>
+    <div class="panel-body">
 
     <div class="row g-3">
       <div class="col-6">
@@ -94,10 +117,16 @@
       Save Avg Down Rules
     </button>
   </div>
+  </section>
 
   <!-- ================= FD & INFLATION ================= -->
-<div class="card mt-3 mb-5">
-    <div class="section-title">FD & Inflation Assumptions</div>
+<section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-graph-up-arrow"></i> FD & Inflation Assumptions</h3>
+      </div>
+    </div>
+    <div class="panel-body">
   
     <div class="row g-3">
       <div class="col-6">
@@ -117,14 +146,20 @@
       Save FD / Inflation Settings
     </button>
   </div>
+  </section>
 
   <!-- ================= DATA MANAGEMENT ================= -->
-<div class="card mt-3">
-    <div class="section-title mb-2">Data Management</div>
+<section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-database"></i> Data Management</h3>
+      </div>
+    </div>
+    <div class="panel-body">
   
     <button class="btn btn-outline-primary w-100 mb-2"
             onclick="exportCSV()">
-      📤 Export CSV
+      <i class="bi bi-box-arrow-up"></i> Export CSV
     </button>
   
     <input type="file"
@@ -134,23 +169,24 @@
   
     <button class="btn btn-outline-danger w-100"
             onclick="importCSV()">
-      📥 Import CSV (Overwrite)
+      <i class="bi bi-box-arrow-in-down"></i> Import CSV (Overwrite)
     </button>
   
     <small class="text-muted d-block mt-2">
       Import will erase existing data before restoring.
     </small>
   </div>
+  </section>
 
 </div>
 
 <!-- ================= BOTTOM NAV ================= -->
 <nav class="bottom-nav">
   <a href="index.html"><i class="bi bi-grid"></i>Home</a>
-  <a href="transactions.html"><i class="bi bi-arrow-left-right"></i>Txn</a>
-  <a href="holdings.html"><i class="bi bi-briefcase"></i>Hold</a>
-  <a href="pnl.html"><i class="bi bi-bar-chart"></i>P/L</a>
-  <a href="insights.html"><i class="bi bi-lightbulb"></i>Insights</a>
+  <a href="Transactions.html"><i class="bi bi-arrow-left-right"></i>Txn</a>
+  <a href="Holdings.html"><i class="bi bi-briefcase"></i>Hold</a>
+  <a href="Pnl.html"><i class="bi bi-bar-chart"></i>P/L</a>
+  <a href="Insights.html"><i class="bi bi-lightbulb"></i>Insights</a>
   <a href="analytics.html">
     <i class="bi bi-graph-up"></i>
     Analytics
@@ -158,8 +194,8 @@
 </nav>
 
 <!-- ================= SCRIPTS ================= -->
-<script src="js/db.js"></script>
-<script src="js/settings.js"></script>
+<script src="JS/Db.js"></script>
+<script src="JS/Settings.js"></script>
 
 <script>
   function toggleTheme() {
@@ -179,3 +215,4 @@
 
 </body>
 </html>
+

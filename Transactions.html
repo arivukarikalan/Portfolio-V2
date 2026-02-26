@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Transactions</title>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- =====================================================
        FEATURE: External UI Libraries
        ===================================================== -->
@@ -17,7 +17,7 @@
   <link href="CSS/ui-theme.css" rel="stylesheet">
 </head>
 
-<body>
+<body class="page-transactions">
 
 <!-- =====================================================
      FEATURE: Header Bar
@@ -26,9 +26,9 @@
       <div class="app-title">Transactions</div>
       <div class="d-flex gap-2">
         <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
-          🌙
+          <i class="bi bi-moon-stars"></i>
         </button>
-        <a href="settings.html" class="btn btn-sm btn-light" title="Settings">
+        <a href="Settings.html" class="btn btn-sm btn-light" title="Settings">
           <i class="bi bi-gear"></i>
         </a>
       </div>
@@ -37,23 +37,35 @@
 <!-- =====================================================
      FEATURE: Transactions Content
      ===================================================== -->
-<div class="container mt-3">
+<div class="container page-shell">
+
+  <section class="hero">
+    <h2 class="hero-title">Trade Journal</h2>
+    <p class="hero-sub">Capture every buy and sell with clean, fast mobile entry.</p>
+  </section>
 
   <!-- =================================================
        FEATURE: Add / Edit Transaction Form
        ================================================= -->
-  <div class="card">
-    <form id="txnForm">
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-pencil-square"></i> Add / Edit Transaction</h3>
+        <p class="panel-note">Keep each order logged accurately for FIFO and P/L.</p>
+      </div>
+    </div>
+    <div class="panel-body">
+      <form id="txnForm" class="stack-gap">
 
       <!-- Hidden field for edit mode -->
       <input type="hidden" id="editTxnId">
 
-      <div class="mb-2">
+      <div>
         <label class="form-label">Stock Name</label>
         <input id="stockInput" class="form-control" placeholder="Eg: TCS">
       </div>
 
-      <div class="mb-2">
+      <div>
         <label class="form-label">Transaction Type</label>
         <select id="txnType" class="form-select">
           <option value="BUY">BUY</option>
@@ -61,7 +73,7 @@
         </select>
       </div>
 
-      <div class="row g-2 mb-2">
+      <div class="row g-2">
         <div class="col-6">
           <label class="form-label">Quantity</label>
           <input id="qtyInput" type="number" class="form-control">
@@ -72,7 +84,7 @@
         </div>
       </div>
 
-      <div class="mb-3">
+      <div>
         <label class="form-label">Date</label>
         <input id="txnDate" type="date" class="form-control">
       </div>
@@ -81,11 +93,18 @@
         Save Transaction
       </button>
     </form>
-  </div>
+    </div>
+  </section>
 
 <!-- ================= FILTERS ================= -->
-<div class="card mt-3">
-  <div class="section-title">Filters</div>
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h3 class="panel-title"><i class="bi bi-funnel"></i> Filters</h3>
+      <p class="panel-note">Refine history by type, stock, and date range.</p>
+    </div>
+  </div>
+  <div class="panel-body tight">
 
   <div class="row g-2">
     <div class="col-4">
@@ -107,12 +126,15 @@
     <input id="filterStock" class="form-control" placeholder="Filter by Stock Name">
   </div>
 </div>
+</section>
 
   <!-- =================================================
        FEATURE: Transaction History
        ================================================= -->
-  <div class="section-title">History</div>
-  <div id="txnList"></div>
+  <section class="list-shell">
+    <div class="section-title">History</div>
+    <div id="txnList"></div>
+  </section>
 
 </div>
 
@@ -124,19 +146,19 @@
         <i class="bi bi-grid"></i>
         Home
       </a>
-      <a class="active" href="transactions.html">
+      <a class="active" href="Transactions.html">
         <i class="bi bi-arrow-left-right"></i>
         Txn
       </a>
-      <a href="holdings.html">
+      <a href="Holdings.html">
         <i class="bi bi-briefcase"></i>
         Hold
       </a>
-      <a href="pnl.html">
+      <a href="Pnl.html">
         <i class="bi bi-bar-chart"></i>
         P/L
       </a>
-      <a href="insights.html">
+      <a href="Insights.html">
         <i class="bi bi-lightbulb"></i>
         Insights
       </a>
@@ -149,9 +171,9 @@
 <!-- =====================================================
      FEATURE: Script Includes
      ===================================================== -->
-<script src="js/db.js"></script>
-<script src="js/settings.js"></script>
-<script src="js/transactions.js"></script>
+<script src="JS/Db.js"></script>
+<script src="JS/Settings.js"></script>
+<script src="JS/Transactions.js"></script>
 
 <script>
   /* =====================================================
@@ -184,3 +206,4 @@
 
 </body>
 </html>
+
