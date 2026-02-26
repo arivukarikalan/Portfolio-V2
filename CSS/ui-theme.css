@@ -454,6 +454,31 @@
   box-shadow: 0 8px 16px rgba(16, 185, 129, 0.08);
 }
 
+.hold-horizon {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.hold-horizon.horizon-long {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.hold-horizon.horizon-short {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.hold-horizon.horizon-now {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 body.dark .list-shell {
   background: color-mix(in oklab, var(--card) 94%, #0b1222);
 }
@@ -480,4 +505,19 @@ body.dark .page-insights #avgDownList .txn-sub .text-warning {
 body.dark .page-insights #avgDownList .txn-sub .text-danger {
   background: rgba(239, 68, 68, 0.2);
   color: #fca5a5 !important;
+}
+
+body.dark .hold-horizon.horizon-long {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
+}
+
+body.dark .hold-horizon.horizon-short {
+  background: rgba(56, 189, 248, 0.2);
+  color: #7dd3fc;
+}
+
+body.dark .hold-horizon.horizon-now {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
 }

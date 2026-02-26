@@ -4,6 +4,59 @@
    - Centralised application settings
    ========================================================= */
 
+/* ================= UX HELPERS ================= */
+function showToast(message, type = "success") {
+  const text = (message || "").trim();
+  if (!text) return;
+
+  let host = document.getElementById("toastHost");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "toastHost";
+    host.className = "toast-host";
+    document.body.appendChild(host);
+  }
+
+  const toast = document.createElement("div");
+  toast.className = `app-toast ${type}`;
+  toast.textContent = text;
+  host.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add("hide");
+    setTimeout(() => toast.remove(), 220);
+  }, 2200);
+}
+
+function setupBottomNav() {
+  const nav = document.querySelector(".bottom-nav");
+  if (!nav) return;
+
+  const links = Array.from(nav.querySelectorAll("a"));
+  if (links.length <= 5) return;
+
+  const current = (location.pathname.split("/").pop() || "index.html").toLowerCase();
+
+  let hideHref = "analytics.html";
+  if (current === "analytics.html") hideHref = "insights.html";
+  if (current === "insights.html") hideHref = "analytics.html";
+
+  const toHide = links.find(
+    a => (a.getAttribute("href") || "").toLowerCase() === hideHref
+  );
+
+  if (toHide) {
+    toHide.style.display = "none";
+    nav.classList.add("nav-five");
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", setupBottomNav);
+} else {
+  setupBottomNav();
+}
+
 /* ================= SEED DEFAULT SETTINGS ================= */
 function seedSettings() {
   return new Promise(resolve => {
@@ -80,7 +133,7 @@ function saveSettings() {
   tx.objectStore("settings").put(data);
 
   tx.oncomplete = () => {
-    alert("Settings saved successfully ✅");
+    showToast("Settings saved successfully");
   };
 }
 
@@ -119,6 +172,7 @@ function exportCSV() {
     });
 
     downloadCSV(csv);
+    showToast("CSV exported successfully");
   });
 }
 
@@ -146,9 +200,12 @@ function downloadCSV(content) {
 /* ---------------- IMPORT ---------------- */
 function importCSV() {
   const file = document.getElementById("importFile").files[0];
-  if (!file) return alert("Select a CSV file");
+  if (!file) {
+    showToast("Please select a CSV file first", "error");
+    return;
+  }
 
-  if (!confirm("This will ERASE existing data. Continue?")) return;
+  if (!confirm("This will overwrite all existing data. Continue?")) return;
 
   const reader = new FileReader();
   reader.onload = e => processCSV(e.target.result);
@@ -222,8 +279,8 @@ function restoreDatabase(setting, transactions) {
     transactions.forEach(t => tx2.objectStore("transactions").add(t));
 
     tx2.oncomplete = () => {
-      alert("Import completed successfully");
-      location.reload();
+      showToast("Import completed. Reloading data...");
+      setTimeout(() => location.reload(), 800);
     };
   };
 }

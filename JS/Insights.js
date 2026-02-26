@@ -26,6 +26,7 @@
   
           const holdings = {};
           const firstBuyPrice = {};
+          const firstBuyDate = {};
           const buyPricesByStock = {};
   
           /* =============================================
@@ -41,6 +42,7 @@
   
               if (!firstBuyPrice[t.stock]) {
                 firstBuyPrice[t.stock] = t.price;
+                firstBuyDate[t.stock] = t.date;
               }
             } else {
               holdings[t.stock] -= t.qty;
@@ -55,6 +57,20 @@
              ============================================= */
           for (const stock in holdings) {
             if (holdings[stock] <= 0) continue;
+
+            const daysHeld = Math.floor(
+              (new Date() - new Date(firstBuyDate[stock])) / 86400000
+            );
+
+            let horizonLabel = "Just now";
+            let horizonClass = "horizon-now";
+            if (daysHeld > 90) {
+              horizonLabel = "Long term hold";
+              horizonClass = "horizon-long";
+            } else if (daysHeld >= 30) {
+              horizonLabel = "Short term hold";
+              horizonClass = "horizon-short";
+            }
   
             const invested = txns
               .filter(t => t.stock === stock && t.type === "BUY")
@@ -78,6 +94,7 @@
               <div class="txn-card">
                 <div class="txn-name">${stock}</div>
                 <div class="txn-sub">
+                  <span class="hold-horizon ${horizonClass}">${horizonLabel}</span><br>
                   Allocation: ${allocationPct.toFixed(2)}%
                   <span class="${statusClass} ms-2">(${status})</span>
                 </div>
@@ -97,6 +114,20 @@
              ============================================= */
           for (const stock in firstBuyPrice) {
             if (!holdings[stock] || holdings[stock] <= 0) continue;
+
+            const daysHeld = Math.floor(
+              (new Date() - new Date(firstBuyDate[stock])) / 86400000
+            );
+
+            let horizonLabel = "Just now";
+            let horizonClass = "horizon-now";
+            if (daysHeld > 90) {
+              horizonLabel = "Long term hold";
+              horizonClass = "horizon-long";
+            } else if (daysHeld >= 30) {
+              horizonLabel = "Short term hold";
+              horizonClass = "horizon-short";
+            }
   
             const base = firstBuyPrice[stock];
             const level1 =
@@ -120,6 +151,7 @@
               <div class="txn-card">
                 <div class="txn-name">${stock}</div>
                 <div class="txn-sub">
+                  <span class="hold-horizon ${horizonClass}">${horizonLabel}</span><br>
                   First Buy: ₹${base.toFixed(2)}<br>
                   Level 1 (${settings.avgLevel1Pct}%): ₹${level1.toFixed(2)}<br>
                   Level 2 (${settings.avgLevel2Pct}%): ₹${level2.toFixed(2)}<br>

@@ -64,7 +64,11 @@ function initTransactionFilters() {
       const price = Number(priceInput.value);
   
       if (!date || !stock || qty <= 0 || price <= 0) {
-        alert("Invalid input");
+        if (typeof showToast === "function") {
+          showToast("Please fill valid stock, quantity, price, and date", "error");
+        } else {
+          alert("Invalid input");
+        }
         return;
       }
   
@@ -87,7 +91,7 @@ function initTransactionFilters() {
         editId
           ? store.put({ ...data, id: Number(editId) })
           : store.add(data);
-  
+
         tx.oncomplete = () => {
           form.reset();
           editTxnId.value = "";
@@ -97,6 +101,10 @@ function initTransactionFilters() {
           calculateHoldings();
           calculatePnL();
           loadDashboard();
+
+          if (typeof showToast === "function") {
+            showToast(editId ? "Transaction updated successfully" : "Transaction saved successfully");
+          }
         };
       });
     };
@@ -197,11 +205,15 @@ function bindFilterEvents() {
         stockInput.value = t.stock;
         qtyInput.value = t.qty;
         priceInput.value = t.price;
+
+        if (typeof showToast === "function") {
+          showToast(`Editing ${t.stock} transaction`, "info");
+        }
       };
   }
   
   function deleteTxn(id) {
-    if (!confirm("Delete transaction?")) return;
+    if (!confirm("Delete this transaction permanently?")) return;
   
     const tx = db.transaction("transactions", "readwrite");
     tx.objectStore("transactions").delete(id);
@@ -211,6 +223,10 @@ function bindFilterEvents() {
       calculateHoldings();
       calculatePnL();
       loadDashboard();
+
+      if (typeof showToast === "function") {
+        showToast("Transaction deleted successfully");
+      }
     };
   }
   

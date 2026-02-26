@@ -296,6 +296,49 @@ body {
   background: color-mix(in oklab, var(--blue) 14%, transparent);
 }
 
+/* ================= TOAST ================= */
+.toast-host {
+  position: fixed;
+  left: 50%;
+  bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 1000;
+  width: min(92vw, 420px);
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.app-toast {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  opacity: 1;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.app-toast.success {
+  border-left: 4px solid var(--positive);
+}
+
+.app-toast.error {
+  border-left: 4px solid var(--negative);
+}
+
+.app-toast.info {
+  border-left: 4px solid var(--blue);
+}
+
+.app-toast.hide {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
 body.dark .app-header,
 body.dark .bottom-nav {
   background: color-mix(in oklab, var(--card) 92%, #020617);
