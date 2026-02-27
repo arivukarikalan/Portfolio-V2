@@ -8,12 +8,11 @@ function ddParseDateLocal(dateStr) {
 }
 
 function ddResolveTxnBrokerage(txn, settings) {
-  const raw = Number(txn.brokerage);
-  if (raw > 0) return raw;
+  const tradeValue = Number(txn.qty) * Number(txn.price);
   if (txn.type === "BUY") {
-    return (settings.brokerageBuyPct / 100) * Number(txn.qty);
+    return (settings.brokerageBuyPct / 100) * tradeValue;
   }
-  return (settings.brokerageSellPct / 100) * Number(txn.qty) + Number(settings.dpCharge || 0);
+  return (settings.brokerageSellPct / 100) * tradeValue + Number(settings.dpCharge || 0);
 }
 
 function ddEmptyCard(msg) {
@@ -275,3 +274,4 @@ function loadDeepDive() {
       };
   });
 }
+

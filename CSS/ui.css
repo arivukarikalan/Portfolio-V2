@@ -156,6 +156,7 @@ body {
   min-height: 42px;
   border: 0;
   background: linear-gradient(145deg, #2e8bff, var(--blue));
+  box-shadow: 0 8px 16px rgba(15, 111, 255, 0.24);
 }
 
 .btn-sm {
@@ -168,6 +169,7 @@ body {
   font-weight: 800;
   letter-spacing: 0.01em;
   margin: 14px 0 8px;
+  color: color-mix(in oklab, var(--text) 92%, var(--muted));
 }
 
 .txn-card {
@@ -258,6 +260,10 @@ body {
   border-bottom-color: var(--border);
 }
 
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 /* ================= BOTTOM NAV ================= */
 .bottom-nav {
   position: fixed;
@@ -302,6 +308,7 @@ body {
 .bottom-nav a.active {
   color: var(--blue);
   background: color-mix(in oklab, var(--blue) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--blue) 28%, transparent);
 }
 
 /* ================= TOAST ================= */
@@ -318,33 +325,163 @@ body {
 }
 
 .app-toast {
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text);
   box-shadow: var(--shadow);
-  padding: 10px 12px;
-  font-size: 12.5px;
-  font-weight: 700;
+  padding: 11px 12px;
+  font-size: 13.5px;
+  font-weight: 800;
   opacity: 1;
+  transform: translateY(0) scale(1);
   transition: opacity 0.2s ease, transform 0.2s ease;
+  animation: toast-pop-in 0.24s ease;
+}
+
+.app-toast-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-toast-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 900;
+  flex: 0 0 28px;
+}
+
+.app-toast-text {
+  flex: 1;
+}
+
+.app-toast-progress {
+  display: block;
+  height: 3px;
+  border-radius: 999px;
+  margin-top: 8px;
+  transform-origin: left center;
+  animation: toast-progress 2.2s linear forwards;
 }
 
 .app-toast.success {
   border-left: 4px solid var(--positive);
 }
+.app-toast.success .app-toast-icon,
+.app-toast.success .app-toast-progress {
+  background: color-mix(in oklab, var(--positive) 22%, transparent);
+  color: var(--positive);
+}
 
 .app-toast.error {
   border-left: 4px solid var(--negative);
+}
+.app-toast.error .app-toast-icon,
+.app-toast.error .app-toast-progress {
+  background: color-mix(in oklab, var(--negative) 18%, transparent);
+  color: var(--negative);
 }
 
 .app-toast.info {
   border-left: 4px solid var(--blue);
 }
+.app-toast.info .app-toast-icon,
+.app-toast.info .app-toast-progress {
+  background: color-mix(in oklab, var(--blue) 18%, transparent);
+  color: var(--blue);
+}
 
 .app-toast.hide {
   opacity: 0;
-  transform: translateY(6px);
+  transform: translateY(6px) scale(0.98);
+}
+
+@keyframes toast-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* ================= REMINDER POPUP ================= */
+.backup-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(3, 8, 20, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.backup-popup {
+  width: min(92vw, 430px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  padding: 14px;
+}
+
+.backup-popup-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.backup-popup-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: color-mix(in oklab, var(--blue) 22%, transparent);
+  color: var(--blue);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.backup-popup-title {
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.backup-popup-sub {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.backup-popup-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.backup-popup-actions .btn {
+  flex: 1;
 }
 
 body.dark .app-header,
@@ -352,10 +489,21 @@ body.dark .bottom-nav {
   background: color-mix(in oklab, var(--card) 92%, #020617);
 }
 
+body.dark .text-muted,
+body.dark .txn-sub,
+body.dark .stat-label,
+body.dark .section-title {
+  color: #b9c8de !important;
+}
+
 body.dark .stat-card,
 body.dark .card,
 body.dark .txn-card {
   box-shadow: 0 14px 28px rgba(1, 8, 20, 0.5);
+}
+
+body.dark .btn-primary {
+  box-shadow: 0 10px 20px rgba(50, 130, 255, 0.25);
 }
 
 @media (max-width: 360px) {

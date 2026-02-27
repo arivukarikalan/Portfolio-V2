@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Debt Management</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="Assets/Icons/bar-chart.png">
+  <link href="CSS/ui.css" rel="stylesheet">
+  <link href="CSS/ui-theme.css" rel="stylesheet">
+</head>
+<body class="page-debt">
+  <div class="app-header">
+    <div class="app-title">Debt Management</div>
+    <div class="d-flex gap-2">
+      <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
+        <i class="bi bi-moon-stars"></i>
+      </button>
+      <a href="Report.html" class="btn btn-sm btn-light" title="Report">
+        <i class="bi bi-clipboard-data"></i>
+      </a>
+      <a href="Settings.html" class="btn btn-sm btn-light" title="Settings">
+        <i class="bi bi-gear"></i>
+      </a>
+    </div>
+  </div>
+
+  <div class="container page-shell">
+    <section class="hero">
+      <h2 class="hero-title">Debt Control Center</h2>
+      <p class="hero-sub">Track borrowings, repayments, and close outstanding quickly without disrupting investing.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-body tight">
+        <div class="d-flex gap-2">
+          <button id="debtExportBtn" class="btn btn-primary flex-fill" type="button">
+            <i class="bi bi-download"></i> Export Debt CSV
+          </button>
+          <button id="debtImportBtn" class="btn btn-outline-secondary flex-fill" type="button">
+            <i class="bi bi-upload"></i> Import Debt CSV
+          </button>
+          <input id="debtImportFile" type="file" accept=".csv,text/csv" hidden>
+        </div>
+      </div>
+    </section>
+
+    <div class="stat-grid" id="debtSummary"></div>
+
+    <section class="panel mt-3">
+      <div class="panel-head">
+        <h3 class="panel-title"><i class="bi bi-journal-plus"></i> Add Borrowing</h3>
+      </div>
+      <div class="panel-body tight">
+        <form id="borrowForm" class="row g-2">
+          <div class="col-6"><input id="borDate" type="date" class="form-control" required></div>
+          <div class="col-6"><input id="borLender" class="form-control" placeholder="Lender name" required></div>
+          <div class="col-6">
+            <select id="borCategory" class="form-select">
+              <option value="Friend">Friend</option>
+              <option value="Family">Family</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="col-6"><input id="borAmount" type="number" min="1" step="0.01" class="form-control" placeholder="Amount" required></div>
+          <div class="col-6"><input id="borInterest" type="number" min="0" step="0.01" class="form-control" placeholder="Interest % (optional)"></div>
+          <div class="col-6"><input id="borNote" class="form-control" placeholder="Note (optional)"></div>
+          <div class="col-12 d-grid"><button class="btn btn-primary" type="submit">Save Borrowing</button></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel mt-3">
+      <div class="panel-head">
+        <h3 class="panel-title"><i class="bi bi-cash-coin"></i> Add Repayment</h3>
+      </div>
+      <div class="panel-body tight">
+        <form id="repayForm" class="row g-2">
+          <div class="col-6"><input id="repDate" type="date" class="form-control" required></div>
+          <div class="col-6"><input id="repLender" list="lenderOptions" class="form-control" placeholder="Lender name" required></div>
+          <datalist id="lenderOptions"></datalist>
+          <div class="col-6"><input id="repAmount" type="number" min="1" step="0.01" class="form-control" placeholder="Repayment amount" required></div>
+          <div class="col-6"><input id="repNote" class="form-control" placeholder="Note (optional)"></div>
+          <div class="col-12 d-grid"><button class="btn btn-primary" type="submit">Save Repayment</button></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel mt-3">
+      <div class="panel-head">
+        <h3 class="panel-title"><i class="bi bi-lightning-charge"></i> Closure Plan</h3>
+      </div>
+      <div class="panel-body tight">
+        <div class="row g-2">
+          <div class="col-6"><input id="monthlyDebtBudget" type="number" min="0" step="1" class="form-control" placeholder="Monthly Debt Budget"></div>
+          <div class="col-6"><input id="monthlyInvestFloor" type="number" min="0" step="1" class="form-control" placeholder="Min Monthly Invest"></div>
+        </div>
+        <div id="debtPlan" class="mt-2"></div>
+      </div>
+    </section>
+
+    <section class="list-shell mt-3">
+      <div class="section-title">Lender-wise Outstanding</div>
+      <div id="debtList"></div>
+    </section>
+  </div>
+
+  <nav class="bottom-nav">
+    <a href="index.html"><i class="bi bi-grid"></i>Home</a>
+    <a href="Transactions.html"><i class="bi bi-arrow-left-right"></i>Txn</a>
+    <a href="Holdings.html"><i class="bi bi-briefcase"></i>Hold</a>
+    <a href="Pnl.html"><i class="bi bi-bar-chart"></i>P/L</a>
+    <a href="Insights.html"><i class="bi bi-lightbulb"></i>Insights</a>
+  </nav>
+
+  <script src="JS/Db.js"></script>
+  <script src="JS/Settings.js"></script>
+  <script src="JS/Debt.js"></script>
+  <script>
+    function toggleTheme() {
+      document.body.classList.toggle("dark");
+      localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
+    }
+    if (localStorage.getItem("theme") === "dark") document.body.classList.add("dark");
+    openDB().then(seedSettings).then(loadDebtPage);
+  </script>
+</body>
+</html>

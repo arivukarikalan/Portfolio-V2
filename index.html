@@ -34,6 +34,9 @@
         <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
           <i class="bi bi-moon-stars"></i>
         </button>
+        <a href="Report.html" class="btn btn-sm btn-light" title="Report">
+          <i class="bi bi-clipboard-data"></i>
+        </a>
         <a href="Settings.html" class="btn btn-sm btn-light" title="Settings">
           <i class="bi bi-gear"></i>
         </a>
@@ -68,6 +71,7 @@
     <div class="stat-card">
       <div class="stat-label">Total P / L</div>
       <div class="stat-value" id="dashPnL">&#8377;0.00</div>
+      <div class="tiny-label mt-1" id="dashReturn">0.00% return in 3 Months</div>
     </div>
 
     <div class="stat-card">
@@ -119,6 +123,16 @@
       <div>
         <div class="section-title mt-0 mb-1">Deep Dive</div>
         <div class="text-muted">Find unwanted buys, risky concentration, and no-return positions</div>
+      </div>
+      <i class="bi bi-chevron-right fs-4"></i>
+    </div>
+  </section>
+
+  <section class="panel mt-3" onclick="location.href='Debt.html'" style="cursor:pointer">
+    <div class="panel-body d-flex justify-content-between align-items-center">
+      <div>
+        <div class="section-title mt-0 mb-1">Debt Management</div>
+        <div class="text-muted">Track borrowings, repayments, and outstanding closure plan</div>
       </div>
       <i class="bi bi-chevron-right fs-4"></i>
     </div>

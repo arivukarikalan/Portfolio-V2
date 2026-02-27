@@ -238,6 +238,10 @@
   overflow: hidden;
 }
 
+.panel:hover {
+  box-shadow: 0 14px 24px rgba(15, 23, 42, 0.09);
+}
+
 .panel-head {
   display: flex;
   align-items: center;
@@ -315,12 +319,26 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
+  overflow-x: auto;
+  background: var(--card);
 }
 
 .mini-table th,
 .mini-table td {
   font-size: 12px;
   padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.mini-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in oklab, var(--card) 90%, #eaf2ff);
+}
+
+.mini-table tbody tr:hover {
+  background: color-mix(in oklab, var(--card) 87%, #e8f1ff);
 }
 
 .pnl-kv {
@@ -358,6 +376,26 @@
 .status-pill-mini.bad {
   background: #fee2e2;
   color: #991b1b;
+}
+
+.suggestion-row {
+  margin-top: 5px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+  padding: 5px 8px;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--card) 88%, #e6f0ff);
+  border: 1px solid color-mix(in oklab, var(--border) 82%, #d6e4ff);
+}
+
+.suggestion-budget {
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
 }
 
 .risk-pill {
@@ -459,11 +497,21 @@
     var(--card);
 }
 
+.page-debt .hero {
+  background:
+    linear-gradient(140deg, rgba(244, 114, 182, 0.16), transparent 62%),
+    var(--card);
+}
+
 /* ================= DETAIL LIST ENHANCEMENTS ================= */
 .list-shell .txn-card {
   border-radius: 14px;
   background: color-mix(in oklab, var(--card) 96%, #eef4ff);
   margin-bottom: 9px;
+}
+
+.list-shell .txn-card:last-child {
+  margin-bottom: 0;
 }
 
 .page-holdings #holdingsList .txn-card {
@@ -647,8 +695,22 @@ body.dark .page-analytics .pnl-txn {
   border-color: color-mix(in oklab, var(--border) 86%, #1b2a44);
 }
 
+body.dark .mini-table thead th {
+  background: color-mix(in oklab, var(--card) 88%, #182843);
+}
+
+body.dark .mini-table tbody tr:hover {
+  background: color-mix(in oklab, var(--card) 85%, #1a2b46);
+}
+
 body.dark .panel-head {
   background: color-mix(in oklab, var(--card) 90%, #12213a);
+}
+
+body.dark .tiny-label,
+body.dark .panel-note,
+body.dark .hero-sub {
+  color: #b7c7df;
 }
 
 body.dark .page-pnl .pnl-header i,
@@ -695,6 +757,16 @@ body.dark .status-pill-mini.ok {
 body.dark .status-pill-mini.bad {
   background: rgba(239, 68, 68, 0.2);
   color: #fca5a5;
+}
+
+body.dark .suggestion-row {
+  background: color-mix(in oklab, var(--card) 86%, #1a2b46);
+  border-color: color-mix(in oklab, var(--border) 78%, #2a446e);
+  color: #d9e7fa;
+}
+
+body.dark .suggestion-budget {
+  color: #b7c7df;
 }
 
 body.dark .risk-pill.ok {

@@ -20,7 +20,7 @@ let db;
    ========================================================= */
 function openDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("PortfolioDB", 2);
+    const request = indexedDB.open("PortfolioDB", 3);
 
     /* ===== Database Schema Creation / Upgrade ===== */
     request.onupgradeneeded = event => {
@@ -38,6 +38,22 @@ function openDB() {
       if (!db.objectStoreNames.contains("settings")) {
         db.createObjectStore("settings", {
           keyPath: "id"
+        });
+      }
+
+      /* Store: Debt Borrows */
+      if (!db.objectStoreNames.contains("debt_borrows")) {
+        db.createObjectStore("debt_borrows", {
+          keyPath: "id",
+          autoIncrement: true
+        });
+      }
+
+      /* Store: Debt Repays */
+      if (!db.objectStoreNames.contains("debt_repays")) {
+        db.createObjectStore("debt_repays", {
+          keyPath: "id",
+          autoIncrement: true
         });
       }
     };

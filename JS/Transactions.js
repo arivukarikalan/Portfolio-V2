@@ -1,4 +1,4 @@
-/* =========================================================
+﻿/* =========================================================
    FILE: transactions.js
    FEATURES COVERED:
    1. Brokerage Calculation
@@ -43,9 +43,12 @@ function parseDateLocal(dateStr) {
 }
 
 function resolveTxnBrokerage(txn, settings) {
-  const raw = Number(txn.brokerage);
-  if (raw > 0) return raw;
-  return calculateBrokerage(txn.type, Number(txn.qty), settings);
+  return calculateBrokerage(
+    txn.type,
+    Number(txn.qty),
+    Number(txn.price),
+    settings
+  );
 }
 
 function refreshStockOptions() {
@@ -69,11 +72,12 @@ function refreshStockOptions() {
    - BUY  -> % brokerage only
    - SELL -> % brokerage + DP charge (once per sell)
    ========================================================= */
-   function calculateBrokerage(type, qty, settings) {
+   function calculateBrokerage(type, qty, price, settings) {
+    const tradeValue = Number(qty) * Number(price);
     if (type === "BUY") {
-      return (settings.brokerageBuyPct / 100) * qty;
+      return (settings.brokerageBuyPct / 100) * tradeValue;
     }
-    return (settings.brokerageSellPct / 100) * qty + settings.dpCharge;
+    return (settings.brokerageSellPct / 100) * tradeValue + Number(settings.dpCharge || 0);
   }
   
   
@@ -117,7 +121,7 @@ function refreshStockOptions() {
       }
   
       getSettings(settings => {
-        const brokerage = calculateBrokerage(type, qty, settings);
+        const brokerage = calculateBrokerage(type, qty, price, settings);
   
         const data = {
           date,
@@ -131,10 +135,24 @@ function refreshStockOptions() {
   
         const tx = db.transaction("transactions", "readwrite");
         const store = tx.objectStore("transactions");
-  
-        editId
-          ? store.put({ ...data, id: Number(editId) })
-          : store.add(data);
+        const nowIso = new Date().toISOString();
+
+        if (editId) {
+          store.get(Number(editId)).onsuccess = ev => {
+            const prev = ev.target.result || {};
+            store.put({
+              ...data,
+              id: Number(editId),
+              createdAt: prev.createdAt || nowIso,
+              updatedAt: nowIso
+            });
+          };
+        } else {
+          store.add({
+            ...data,
+            createdAt: nowIso
+          });
+        }
 
         tx.oncomplete = () => {
           form.reset();
@@ -170,10 +188,11 @@ function refreshStockOptions() {
       const to = document.getElementById("filterTo")?.value;
       const stock = document.getElementById("filterStock")?.value.toLowerCase() || "";
     
-      db.transaction("transactions", "readonly")
-        .objectStore("transactions")
-        .getAll().onsuccess = e => {
-          let data = e.target.result;
+      getSettings(settings => {
+        db.transaction("transactions", "readonly")
+          .objectStore("transactions")
+          .getAll().onsuccess = e => {
+            let data = e.target.result;
     
           /* ===== Apply Filters ===== */
           data = data.filter(t => {
@@ -184,8 +203,9 @@ function refreshStockOptions() {
             return true;
           });
     
-          renderTransactions(data);
-        };
+            renderTransactions(data, settings);
+          };
+      });
     }
 
     /* ================= FILTER EVENTS ================= */
@@ -196,7 +216,7 @@ function bindFilterEvents() {
   });
 }
   
-  function renderTransactions(data) {
+  function renderTransactions(data, settings) {
     const txnList = document.getElementById("txnList");
     if (!txnList) return;
   
@@ -211,9 +231,12 @@ function bindFilterEvents() {
     data
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .forEach(t => {
+        const brokerage = settings
+          ? resolveTxnBrokerage(t, settings)
+          : Number(t.brokerage || 0);
         const buyCost =
           t.type === "BUY"
-            ? (t.qty * t.price + t.brokerage).toFixed(2)
+            ? (t.qty * t.price + brokerage).toFixed(2)
             : null;
   
         txnList.innerHTML += `
@@ -254,7 +277,7 @@ function bindFilterEvents() {
         if (typeof showToast === "function") {
           showToast(`Editing ${t.stock} transaction`, "info");
         }
-      };
+        };
   }
   
   function deleteTxn(id) {
@@ -286,9 +309,10 @@ function bindFilterEvents() {
     const holdingsList = document.getElementById("holdingsList");
     if (!holdingsList) return;
   
-    db.transaction("transactions", "readonly")
-      .objectStore("transactions")
-      .getAll().onsuccess = e => {
+    getSettings(settings => {
+      db.transaction("transactions", "readonly")
+        .objectStore("transactions")
+        .getAll().onsuccess = e => {
         const txns = e.target.result.sort(
           (a, b) => new Date(a.date) - new Date(b.date)
         );
@@ -305,7 +329,7 @@ function bindFilterEvents() {
             map[t.stock].lots.push({
               qty: t.qty,
               price: t.price,
-              brokeragePerUnit: t.brokerage / t.qty
+              brokeragePerUnit: resolveTxnBrokerage(t, settings) / t.qty
             });
           } else {
             let sellQty = t.qty;
@@ -350,7 +374,8 @@ function bindFilterEvents() {
           holdingsList.innerHTML =
             `<div class="txn-card text-center text-muted">No holdings</div>`;
         }
-      };
+        };
+    });
   }
   
   
@@ -547,6 +572,7 @@ function loadDashboard() {
   const pnlEl = document.getElementById("dashPnL");
   const holdingsEl = document.getElementById("dashHoldings");
   const brokerageEl = document.getElementById("dashBrokerage");
+  const returnEl = document.getElementById("dashReturn");
 
   if (!investedEl || !pnlEl || !holdingsEl) return;
 
@@ -563,6 +589,10 @@ function loadDashboard() {
       const brokerageByStock = {};
       let totalPnL = 0;
       let totalBrokerage = 0;
+      let periodPnL = 0;
+      let periodInvestedBase = 0;
+      const periodStart = new Date();
+      periodStart.setMonth(periodStart.getMonth() - 3);
 
       /* =============================================
          STEP 1: Build FIFO Holdings + Realised P/L
@@ -571,6 +601,9 @@ function loadDashboard() {
         map[t.stock] ??= { lots: [] };
         const txnBrokerage = resolveTxnBrokerage(t, settings);
         totalBrokerage += txnBrokerage;
+        if (t.type === "BUY" && new Date(t.date) >= periodStart) {
+          periodInvestedBase += (Number(t.qty) * Number(t.price)) + txnBrokerage;
+        }
         brokerageByStock[t.stock] ??= { buy: 0, sell: 0, total: 0 };
         if (t.type === "BUY") brokerageByStock[t.stock].buy += txnBrokerage;
         else brokerageByStock[t.stock].sell += txnBrokerage;
@@ -612,6 +645,9 @@ function loadDashboard() {
             txnBrokerage;
 
           totalPnL += net;
+          if (new Date(t.date) >= periodStart) {
+            periodPnL += net;
+          }
         }
       });
 
@@ -640,7 +676,10 @@ function loadDashboard() {
       pnlEl.innerText = `₹${totalPnL.toFixed(2)}`;
       holdingsEl.innerText = activeHoldings;
       if (brokerageEl) brokerageEl.innerText = `₹${totalBrokerage.toFixed(2)}`;
-
+      if (returnEl) {
+        const returnPct = periodInvestedBase > 0 ? (periodPnL / periodInvestedBase) * 100 : 0;
+        returnEl.textContent = `${returnPct.toFixed(2)}% return in 3 Months`;
+      }
       const brkgBody = document.getElementById("brokerageBreakdownBody");
       if (brkgBody) {
         const rows = Object.keys(brokerageByStock)
@@ -713,5 +752,9 @@ function toggleBrokerageBreakdown() {
   if (!panel) return;
   panel.style.display = panel.style.display === "none" ? "block" : "none";
 }
+
+
+
+
 
 

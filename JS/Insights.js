@@ -55,10 +55,11 @@ function loadInsights() {
             s.cycleLastBuyDate = t.date;
             s.cycleLastBuyPrice = t.price;
             s.cycleBuyPrices.push(t.price);
+            const buyBrkg = resolveTxnBrokerage(t, settings);
             s.lots.push({
               qty: t.qty,
               price: t.price,
-              brokeragePerUnit: t.brokerage / t.qty,
+              brokeragePerUnit: buyBrkg / t.qty,
               date: t.date
             });
             return;
@@ -155,6 +156,23 @@ function loadInsights() {
           const level2Buy = s.cycleBuyPrices.find(p => p <= level2);
           const level1Done = level1Buy != null;
           const level2Done = level2Buy != null;
+          const maxStockBudget =
+            (Number(settings.portfolioSize || 0) * Number(settings.maxAllocationPct || 0)) / 100;
+          const remainingBudget = Math.max(0, maxStockBudget - invested);
+          const pendingLevels = [
+            !level1Done ? { label: "L1", price: level1 } : null,
+            !level2Done ? { label: "L2", price: level2 } : null
+          ].filter(Boolean);
+          const perLevelBudget =
+            pendingLevels.length > 0 ? (remainingBudget / pendingLevels.length) : 0;
+          const suggestedL1Qty = !level1Done ? Math.max(0, Math.floor(perLevelBudget / level1)) : 0;
+          const suggestedL2Qty = !level2Done ? Math.max(0, Math.floor(perLevelBudget / level2)) : 0;
+          const projectedAvgL1 = (!level1Done && suggestedL1Qty > 0)
+            ? ((invested + (suggestedL1Qty * level1)) / (s.lots.reduce((a, l) => a + l.qty, 0) + suggestedL1Qty))
+            : null;
+          const projectedAvgL2 = (!level2Done && suggestedL2Qty > 0)
+            ? ((invested + (suggestedL2Qty * level2)) / (s.lots.reduce((a, l) => a + l.qty, 0) + suggestedL2Qty))
+            : null;
 
           let avgStatus = "";
           if (level1Done && level2Done) {
@@ -181,6 +199,10 @@ function loadInsights() {
               <div class="txn-sub mt-1">
                 ${level1Done ? `L1 Buy: \u20B9${level1Buy.toFixed(2)} (Diff: \u20B9${(level1Buy - level1).toFixed(2)}) <span class="good-buy-badge">Good Buy</span><br>` : `L1 Buy: -<br>`}
                 ${level2Done ? `L2 Buy: \u20B9${level2Buy.toFixed(2)} (Diff: \u20B9${(level2Buy - level2).toFixed(2)}) <span class="good-buy-badge">Good Buy</span><br>` : `L2 Buy: -<br>`}
+                ${!level1Done ? `<div class="suggestion-row"><span>Next L1 Qty: ${suggestedL1Qty} @ \u20B9${level1.toFixed(2)}</span><span>${projectedAvgL1 ? `New Avg: \u20B9${projectedAvgL1.toFixed(2)}` : `New Avg: -`}</span></div>` : ``}
+                ${!level2Done ? `<div class="suggestion-row"><span>Next L2 Qty: ${suggestedL2Qty} @ \u20B9${level2.toFixed(2)}</span><span>${projectedAvgL2 ? `New Avg: \u20B9${projectedAvgL2.toFixed(2)}` : `New Avg: -`}</span></div>` : ``}
+                ${pendingLevels.length > 0 ? `<div class="suggestion-budget">Stock Budget: \u20B9${maxStockBudget.toFixed(2)} | Remaining: \u20B9${remainingBudget.toFixed(2)}</div>` : ``}
+                ${pendingLevels.length > 0 && suggestedL1Qty <= 0 && suggestedL2Qty <= 0 ? `<span class="text-warning">At/near max allocation limit (${Number(settings.maxAllocationPct || 0).toFixed(2)}%)</span><br>` : ``}
                 ${avgStatus}
               </div>
             </div>
@@ -203,3 +225,4 @@ function loadInsights() {
       };
   });
 }
+
