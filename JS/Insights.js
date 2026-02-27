@@ -15,28 +15,390 @@ function parseDateLocalInsight(dateStr) {
   return new Date(y, m - 1, d);
 }
 
-function toggleAdvancedInsights() {
-  const panel = document.getElementById("advancedInsightsPanel");
-  const btn = document.getElementById("toggleAdvancedBtn");
-  if (!panel || !btn) return;
-  const hidden = panel.style.display === "none";
-  panel.style.display = hidden ? "block" : "none";
-  btn.textContent = hidden ? "Hide" : "Show";
+function buildReasonOutcome(txns, settings) {
+  const fifo = {};
+  const byReason = {};
+
+  txns
+    .slice()
+    .sort((a, b) => parseDateLocalInsight(a.date) - parseDateLocalInsight(b.date))
+    .forEach(t => {
+      const stock = String(t.stock || "");
+      fifo[stock] ??= [];
+
+      if (t.type === "BUY") {
+        const buyBrkg = resolveTxnBrokerage(t, settings);
+        fifo[stock].push({
+          qty: Number(t.qty),
+          price: Number(t.price),
+          brokeragePerUnit: buyBrkg / Math.max(1, Number(t.qty)),
+          date: t.date,
+          reason: String(t.reason || "").trim() || "Unspecified"
+        });
+        return;
+      }
+
+      let sellQty = Number(t.qty || 0);
+      const sellPrice = Number(t.price || 0);
+      const sellBrkgTotal = resolveTxnBrokerage(t, settings);
+      const sellDate = parseDateLocalInsight(t.date);
+
+      while (sellQty > 0 && fifo[stock].length) {
+        const lot = fifo[stock][0];
+        const used = Math.min(lot.qty, sellQty);
+        const usedRatio = Number(t.qty) > 0 ? used / Number(t.qty) : 0;
+
+        const invested = used * (lot.price + lot.brokeragePerUnit);
+        const sellValue = used * sellPrice;
+        const sellBrkg = sellBrkgTotal * usedRatio;
+        const net = sellValue - invested - sellBrkg;
+        const daysHeld = Math.max(0, Math.floor((sellDate - parseDateLocalInsight(lot.date)) / 86400000));
+        const reason = lot.reason || "Unspecified";
+
+        byReason[reason] ??= {
+          reason,
+          invested: 0,
+          net: 0,
+          wins: 0,
+          losses: 0,
+          occurrences: 0,
+          bucket30: 0,
+          bucket60: 0,
+          bucket90: 0,
+          bucket90plus: 0
+        };
+
+        const r = byReason[reason];
+        r.invested += invested;
+        r.net += net;
+        r.occurrences += 1;
+        if (net >= 0) r.wins += 1;
+        else r.losses += 1;
+
+        if (daysHeld <= 30) r.bucket30 += 1;
+        else if (daysHeld <= 60) r.bucket60 += 1;
+        else if (daysHeld <= 90) r.bucket90 += 1;
+        else r.bucket90plus += 1;
+
+        lot.qty -= used;
+        sellQty -= used;
+        if (lot.qty === 0) fifo[stock].shift();
+      }
+    });
+
+  return Object.values(byReason)
+    .map(r => ({
+      ...r,
+      returnPct: r.invested > 0 ? (r.net / r.invested) * 100 : 0,
+      winRate: (r.wins + r.losses) > 0 ? (r.wins / (r.wins + r.losses)) * 100 : 0
+    }))
+    .sort((a, b) => b.returnPct - a.returnPct);
 }
 
-function toggleMistakeTracker() {
-  const panel = document.getElementById("mistakeTrackerPanel");
-  const btn = document.getElementById("toggleMistakeBtn");
-  if (!panel || !btn) return;
+function buildCapitalEfficiencyRows(activeRows, settings) {
+  const maxAlloc = Math.max(1, Number(settings.maxAllocationPct || 25));
+  return activeRows
+    .map(r => {
+      const returnScore = Math.max(0, Math.min(100, (r.returnPct + 10) * 4));
+      const daysScore = Math.max(0, Math.min(100, 100 - ((r.daysHeld / 180) * 100)));
+      const capitalScore = Math.max(0, Math.min(100, (r.capitalSharePct / maxAlloc) * 100));
+      const score = (returnScore * 0.5) + (daysScore * 0.25) + (capitalScore * 0.25);
+
+      let status = "Inefficient";
+      let statusCls = "bad";
+      if (score >= 75) {
+        status = "Efficient";
+        statusCls = "ok";
+      } else if (score >= 55) {
+        status = "Watch";
+        statusCls = "warn";
+      }
+
+      let note = "Maintain discipline and track next add/trim decision.";
+      if (r.returnPct < 0) {
+        note = "Negative return. Avoid new averaging unless zone + allocation rules align.";
+      } else if (r.daysHeld > 90 && r.returnPct < 5) {
+        note = "Capital tied up with slow return. Reassess conviction and opportunity cost.";
+      } else if (r.capitalSharePct > maxAlloc) {
+        note = "Allocation above configured limit. Prefer trim on strength over fresh buys.";
+      }
+
+      return { ...r, score, status, statusCls, note };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
+function renderCapitalEfficiency(listEl, rows) {
+  if (!listEl) return;
+  if (!rows.length) {
+    listEl.innerHTML = `<div class="txn-card text-center text-muted">No active holdings for efficiency ranking</div>`;
+    return;
+  }
+
+  listEl.innerHTML = rows.map((r, idx) => `
+    <div class="txn-card">
+      <div class="split-row">
+        <div class="left-col">
+          <div class="txn-name">#${idx + 1} ${r.stock}</div>
+          <div class="tiny-label">Invested: \u20B9${r.invested.toFixed(2)} | Hold: ${r.daysHeld}d</div>
+          <div class="tiny-label">Capital Share: ${r.capitalSharePct.toFixed(2)}%</div>
+        </div>
+        <div class="right-col">
+          <div class="metric-strong ${r.returnPct >= 0 ? "profit" : "loss"}">${r.returnPct.toFixed(2)}%</div>
+          <span class="status-pill-mini ${r.statusCls}">${r.status}</span>
+        </div>
+      </div>
+      <div class="tiny-label mt-1">Unrealized: \u20B9${r.unrealized.toFixed(2)} | Ref Price: \u20B9${r.referencePrice.toFixed(2)}</div>
+      <div class="suggestion-budget mt-1"><strong>Action:</strong> ${r.note}</div>
+    </div>
+  `).join("");
+}
+
+function buildHoldingEdgeRows(txns, settings) {
+  const fifo = {};
+  const buckets = {
+    "0-7d": { label: "0-7d", trades: 0, wins: 0, losses: 0, invested: 0, net: 0, daysTotal: 0 },
+    "8-15d": { label: "8-15d", trades: 0, wins: 0, losses: 0, invested: 0, net: 0, daysTotal: 0 },
+    "16-30d": { label: "16-30d", trades: 0, wins: 0, losses: 0, invested: 0, net: 0, daysTotal: 0 },
+    "31-60d": { label: "31-60d", trades: 0, wins: 0, losses: 0, invested: 0, net: 0, daysTotal: 0 },
+    "61-90d": { label: "61-90d", trades: 0, wins: 0, losses: 0, invested: 0, net: 0, daysTotal: 0 },
+    "90d+": { label: "90d+", trades: 0, wins: 0, losses: 0, invested: 0, net: 0, daysTotal: 0 }
+  };
+
+  const bucketOfDays = d => {
+    if (d <= 7) return "0-7d";
+    if (d <= 15) return "8-15d";
+    if (d <= 30) return "16-30d";
+    if (d <= 60) return "31-60d";
+    if (d <= 90) return "61-90d";
+    return "90d+";
+  };
+
+  txns
+    .slice()
+    .sort((a, b) => parseDateLocalInsight(a.date) - parseDateLocalInsight(b.date))
+    .forEach(t => {
+      const stock = String(t.stock || "");
+      fifo[stock] ??= [];
+
+      if (t.type === "BUY") {
+        const buyBrkg = resolveTxnBrokerage(t, settings);
+        fifo[stock].push({
+          qty: Number(t.qty),
+          price: Number(t.price),
+          brokeragePerUnit: buyBrkg / Math.max(1, Number(t.qty)),
+          date: t.date
+        });
+        return;
+      }
+
+      let sellQty = Number(t.qty || 0);
+      const sellPrice = Number(t.price || 0);
+      const sellBrkgTotal = resolveTxnBrokerage(t, settings);
+      const sellDate = parseDateLocalInsight(t.date);
+
+      while (sellQty > 0 && fifo[stock].length) {
+        const lot = fifo[stock][0];
+        const used = Math.min(lot.qty, sellQty);
+        const usedRatio = Number(t.qty) > 0 ? used / Number(t.qty) : 0;
+        const invested = used * (lot.price + lot.brokeragePerUnit);
+        const sellValue = used * sellPrice;
+        const sellBrkg = sellBrkgTotal * usedRatio;
+        const net = sellValue - invested - sellBrkg;
+        const daysHeld = Math.max(0, Math.floor((sellDate - parseDateLocalInsight(lot.date)) / 86400000));
+        const key = bucketOfDays(daysHeld);
+        const b = buckets[key];
+
+        b.trades += 1;
+        b.invested += invested;
+        b.net += net;
+        b.daysTotal += daysHeld;
+        if (net >= 0) b.wins += 1;
+        else b.losses += 1;
+
+        lot.qty -= used;
+        sellQty -= used;
+        if (lot.qty === 0) fifo[stock].shift();
+      }
+    });
+
+  return Object.values(buckets)
+    .filter(b => b.trades > 0)
+    .map(b => ({
+      ...b,
+      returnPct: b.invested > 0 ? (b.net / b.invested) * 100 : 0,
+      winRate: (b.wins + b.losses) > 0 ? (b.wins / (b.wins + b.losses)) * 100 : 0,
+      avgDays: b.trades > 0 ? b.daysTotal / b.trades : 0
+    }))
+    .sort((a, b) => b.returnPct - a.returnPct);
+}
+
+function renderHoldingEdge(listEl, rows) {
+  if (!listEl) return;
+  if (!rows.length) {
+    listEl.innerHTML = `<div class="txn-card text-center text-muted">No realized sells yet for holding edge analysis</div>`;
+    return;
+  }
+
+  const best = rows[0];
+  listEl.innerHTML = `
+    <div class="section-shell mb-2">
+      <div class="split-row">
+        <div class="left-col">
+          <div class="tiny-label">Best Holding Window</div>
+          <div class="metric-strong">${best.label}</div>
+        </div>
+        <div class="right-col">
+          <span class="status-pill-mini ok">${best.returnPct.toFixed(2)}%</span>
+        </div>
+      </div>
+      <div class="tiny-label mt-1">Win Rate: ${best.winRate.toFixed(1)}% | Trades: ${best.trades} | Avg Hold: ${best.avgDays.toFixed(1)}d</div>
+    </div>
+    ${rows.map(r => `
+      <div class="txn-card">
+        <div class="split-row">
+          <div class="left-col">
+            <div class="txn-name">${r.label}</div>
+            <div class="tiny-label">Trades: ${r.trades} | Win Rate: ${r.winRate.toFixed(1)}% | Avg Hold: ${r.avgDays.toFixed(1)}d</div>
+          </div>
+          <div class="right-col">
+            <div class="metric-strong ${r.returnPct >= 0 ? "profit" : "loss"}">${r.returnPct.toFixed(2)}%</div>
+            <div class="tiny-label">Net: \u20B9${r.net.toFixed(2)}</div>
+          </div>
+        </div>
+        <div class="tiny-label mt-1">Invested: \u20B9${r.invested.toFixed(2)}</div>
+      </div>
+    `).join("")}
+  `;
+}
+
+function buildActionPriorityRows(capitalRows, qualityByStock, settings) {
+  const maxAlloc = Number(settings.maxAllocationPct || 25);
+  return capitalRows
+    .map(r => {
+      const q = qualityByStock[r.stock] || {
+        chaseBuys: 0,
+        weakDropBuys: 0,
+        overAllocBuys: 0,
+        panicSells: 0
+      };
+
+      const allocRisk = r.capitalSharePct > maxAlloc ? 35 : (r.capitalSharePct > maxAlloc * 0.85 ? 20 : 0);
+      const returnRisk = r.returnPct < -5 ? 35 : (r.returnPct < 0 ? 20 : 0);
+      const staleRisk = (r.daysHeld > 90 && r.returnPct < 5) ? 20 : 0;
+      const disciplineRisk = Math.min(
+        25,
+        (q.chaseBuys * 5) + (q.weakDropBuys * 8) + (q.overAllocBuys * 10) + (q.panicSells * 8)
+      );
+      const priority = Math.min(100, allocRisk + returnRisk + staleRisk + disciplineRisk);
+
+      let label = "Low";
+      let cls = "ok";
+      if (priority >= 60) {
+        label = "High";
+        cls = "bad";
+      } else if (priority >= 35) {
+        label = "Medium";
+        cls = "warn";
+      }
+
+      let action = "Hold and continue disciplined adds only at planned zones.";
+      if (r.capitalSharePct > maxAlloc && r.returnPct > 0) {
+        action = "Over allocation with profit: trim in parts to bring weight near target.";
+      } else if (r.returnPct < 0 && r.daysHeld > 30) {
+        action = "Negative return with aging hold: review thesis before adding more capital.";
+      } else if (disciplineRisk >= 16) {
+        action = "High execution mistakes: pause fresh buys and follow checklist strictly.";
+      }
+
+      return {
+        ...r,
+        priority,
+        label,
+        cls,
+        action,
+        mistakes: q
+      };
+    })
+    .sort((a, b) => b.priority - a.priority);
+}
+
+function renderActionPriority(listEl, rows) {
+  if (!listEl) return;
+  if (!rows.length) {
+    listEl.innerHTML = `<div class="txn-card text-center text-muted">No active holdings for action queue</div>`;
+    return;
+  }
+
+  const topRows = rows.slice(0, 5);
+  listEl.innerHTML = topRows.map((r, idx) => `
+    <div class="txn-card">
+      <div class="split-row">
+        <div class="left-col">
+          <div class="txn-name">#${idx + 1} ${r.stock}</div>
+          <div class="tiny-label">Alloc ${r.capitalSharePct.toFixed(2)}% | Return ${r.returnPct.toFixed(2)}% | Hold ${r.daysHeld}d</div>
+          <div class="tiny-label">Chase ${r.mistakes.chaseBuys} | Weak ${r.mistakes.weakDropBuys} | OverAlloc ${r.mistakes.overAllocBuys} | Panic ${r.mistakes.panicSells}</div>
+        </div>
+        <div class="right-col">
+          <div class="metric-strong">${r.priority.toFixed(0)} / 100</div>
+          <span class="status-pill-mini ${r.cls}">${r.label} Priority</span>
+        </div>
+      </div>
+      <div class="suggestion-budget mt-1"><strong>Suggested Action:</strong> ${r.action}</div>
+    </div>
+  `).join("");
+}
+
+function renderReasonOutcome(listEl, rows) {
+  if (!listEl) return;
+  if (!rows.length) {
+    listEl.innerHTML = `<div class="txn-card text-center text-muted">No realised outcome data by reason yet</div>`;
+    return;
+  }
+
+  listEl.innerHTML = rows.map(r => `
+    <div class="txn-card">
+      <div class="split-row">
+        <div class="left-col">
+          <div class="txn-name">${r.reason}</div>
+          <div class="tiny-label">Occurrences: ${r.occurrences} | Win Rate: ${r.winRate.toFixed(1)}%</div>
+        </div>
+        <div class="right-col">
+          <div class="metric-strong ${r.returnPct >= 0 ? "profit" : "loss"}">${r.returnPct.toFixed(2)}%</div>
+          <div class="tiny-label">Net: ₹${r.net.toFixed(2)}</div>
+        </div>
+      </div>
+      <div class="tiny-label mt-1">Invested: ₹${r.invested.toFixed(2)}</div>
+      <div class="status-inline mt-2">
+        <span class="status-pill-mini">0-30d: ${r.bucket30}</span>
+        <span class="status-pill-mini">31-60d: ${r.bucket60}</span>
+        <span class="status-pill-mini">61-90d: ${r.bucket90}</span>
+        <span class="status-pill-mini">90d+: ${r.bucket90plus}</span>
+      </div>
+    </div>
+  `).join("");
+}
+
+function toggleInsightsSection(panelId, btnEl) {
+  const panel = document.getElementById(panelId);
+  if (!panel || !btnEl) return;
   const hidden = panel.style.display === "none";
   panel.style.display = hidden ? "block" : "none";
-  btn.textContent = hidden ? "Hide" : "Show";
+  const icon = btnEl.querySelector("i");
+  if (icon) {
+    icon.classList.remove("bi-chevron-up", "bi-chevron-down");
+    icon.classList.add(hidden ? "bi-chevron-up" : "bi-chevron-down");
+  }
 }
 
 function loadInsights() {
   const allocationList = document.getElementById("allocationList");
   const avgDownList = document.getElementById("avgDownList");
   const advancedList = document.getElementById("advancedInsightsList");
+  const reasonOutcomeList = document.getElementById("reasonOutcomeList");
+  const capitalEfficiencyList = document.getElementById("capitalEfficiencyList");
+  const holdingEdgeList = document.getElementById("holdingEdgeList");
+  const actionPriorityList = document.getElementById("actionPriorityList");
   const mistakeSummaryEl = document.getElementById("mistakeTrackerSummary");
   const mistakeListEl = document.getElementById("mistakeTrackerList");
   const sellAssistantList = document.getElementById("sellAssistantList");
@@ -65,7 +427,8 @@ function loadInsights() {
             chaseBuys: 0,
             weakDropBuys: 0,
             overAllocBuys: 0,
-            panicSells: 0
+            panicSells: 0,
+            details: []
           };
           return quality.byStock[stock];
         }
@@ -138,11 +501,23 @@ function loadInsights() {
               if (currPrice > prevPrice) {
                 qStock.chaseBuys += 1;
                 qMonth.chaseBuys += 1;
+                qStock.details.push({
+                  date: t.date,
+                  type: "BUY",
+                  reason: "Chase Buy",
+                  info: `Bought at ₹${currPrice.toFixed(2)} above previous buy ₹${prevPrice.toFixed(2)}.`
+                });
               } else {
                 const dropPct = prevPrice > 0 ? ((prevPrice - currPrice) / prevPrice) * 100 : 0;
                 if (dropPct < Number(settings.avgLevel1Pct || 0)) {
                   qStock.weakDropBuys += 1;
                   qMonth.weakDropBuys += 1;
+                  qStock.details.push({
+                    date: t.date,
+                    type: "BUY",
+                    reason: "Weak Drop Buy",
+                    info: `Drop ${dropPct.toFixed(2)}% from previous buy is below L1 rule ${Number(settings.avgLevel1Pct || 0).toFixed(2)}%.`
+                  });
                 }
               }
             }
@@ -167,6 +542,12 @@ function loadInsights() {
             if (allocAfterBuyPct > Number(settings.maxAllocationPct || 0)) {
               qStock.overAllocBuys += 1;
               qMonth.overAllocBuys += 1;
+              qStock.details.push({
+                date: t.date,
+                type: "BUY",
+                reason: "Over Allocation Buy",
+                info: `Post-buy allocation ${allocAfterBuyPct.toFixed(2)}% exceeded max ${Number(settings.maxAllocationPct || 0).toFixed(2)}%.`
+              });
             }
 
             fifoForQuality[t.stock].push({
@@ -220,6 +601,12 @@ function loadInsights() {
           if (sellNet < 0 && avgHoldDays <= 15) {
             qStock.panicSells += 1;
             qMonth.panicSells += 1;
+            qStock.details.push({
+              date: t.date,
+              type: "SELL",
+              reason: "Panic Sell",
+              info: `Loss sell ₹${sellNet.toFixed(2)} within ${avgHoldDays.toFixed(0)} hold days.`
+            });
           }
 
           let sellQty = t.qty;
@@ -235,6 +622,10 @@ function loadInsights() {
         allocationList.innerHTML = "";
         avgDownList.innerHTML = "";
         if (advancedList) advancedList.innerHTML = "";
+        if (reasonOutcomeList) reasonOutcomeList.innerHTML = "";
+        if (capitalEfficiencyList) capitalEfficiencyList.innerHTML = "";
+        if (holdingEdgeList) holdingEdgeList.innerHTML = "";
+        if (actionPriorityList) actionPriorityList.innerHTML = "";
         if (sellAssistantList) sellAssistantList.innerHTML = "";
 
         const totalActiveInvested = Object.values(state)
@@ -242,6 +633,7 @@ function loadInsights() {
             (a, l) => a + l.qty * (l.price + l.brokeragePerUnit),
             0
           ), 0);
+        const capitalRows = [];
 
         Object.keys(state).forEach(stock => {
           const s = state[stock];
@@ -271,6 +663,22 @@ function loadInsights() {
           const daysHeld = Math.floor(
             (new Date() - parseDateLocalInsight(s.cycleFirstBuyDate)) / 86400000
           );
+          const qty = s.lots.reduce((a, l) => a + l.qty, 0);
+          const referencePrice = Number(s.cycleLastTxnPrice || s.cycleLastBuyPrice || 0);
+          const currentValue = qty * referencePrice;
+          const unrealized = currentValue - invested;
+          const returnPct = invested > 0 ? (unrealized / invested) * 100 : 0;
+          const capitalSharePct = totalActiveInvested > 0 ? (invested / totalActiveInvested) * 100 : 0;
+          capitalRows.push({
+            stock,
+            invested,
+            qty,
+            daysHeld,
+            referencePrice,
+            unrealized,
+            returnPct,
+            capitalSharePct
+          });
 
           let horizonLabel = "Just now";
           let horizonClass = "horizon-now";
@@ -309,12 +717,11 @@ function loadInsights() {
           `;
 
           if (sellAssistantList) {
-            const qty = s.lots.reduce((a, l) => a + l.qty, 0);
             const avgCost = qty > 0 ? invested / qty : 0;
-            const referencePrice = Number(s.cycleLastTxnPrice || s.cycleLastBuyPrice || avgCost);
-            const currentValue = qty * referencePrice;
-            const unrealized = currentValue - invested;
-            const unrealizedPct = invested > 0 ? (unrealized / invested) * 100 : 0;
+            const referencePriceForSell = referencePrice > 0 ? referencePrice : avgCost;
+            const currentValueForSell = qty * referencePriceForSell;
+            const unrealizedForSell = currentValueForSell - invested;
+            const unrealizedPct = invested > 0 ? (unrealizedForSell / invested) * 100 : 0;
 
             const targetPct = Number(settings.sellTargetPct ?? 15);
             const stopLossPct = Math.abs(Number(settings.stopLossPct ?? 8));
@@ -347,14 +754,14 @@ function loadInsights() {
                 <div class="split-row">
                   <div class="left-col">
                     <div class="txn-name">${stock}</div>
-                    <div class="tiny-label">Qty ${qty} | Avg ₹${avgCost.toFixed(2)} | Ref ₹${referencePrice.toFixed(2)}</div>
+                    <div class="tiny-label">Qty ${qty} | Avg ₹${avgCost.toFixed(2)} | Ref ₹${referencePriceForSell.toFixed(2)}</div>
                   </div>
                   <div class="right-col">
                     <span class="${actionCls}">${action}</span>
                   </div>
                 </div>
                 <div class="split-row mt-1">
-                  <div class="left-col tiny-label">Unrealized: ₹${unrealized.toFixed(2)} (${unrealizedPct.toFixed(2)}%)</div>
+                  <div class="left-col tiny-label">Unrealized: ₹${unrealizedForSell.toFixed(2)} (${unrealizedPct.toFixed(2)}%)</div>
                   <div class="right-col tiny-label">Days: ${daysHeld}</div>
                 </div>
                 <div class="tiny-label mt-1">Rule: Target ${targetPct.toFixed(2)}% | Stop-loss ${stopLossPct.toFixed(2)}% | Min Hold ${minHoldDaysTrim}d</div>
@@ -548,6 +955,26 @@ function loadInsights() {
             </div>`;
         }
 
+        if (capitalEfficiencyList) {
+          const rankedEfficiency = buildCapitalEfficiencyRows(capitalRows, settings);
+          renderCapitalEfficiency(capitalEfficiencyList, rankedEfficiency);
+        }
+
+        if (reasonOutcomeList) {
+          const reasonRows = buildReasonOutcome(txns, settings);
+          renderReasonOutcome(reasonOutcomeList, reasonRows);
+        }
+
+        if (holdingEdgeList) {
+          const edgeRows = buildHoldingEdgeRows(txns, settings);
+          renderHoldingEdge(holdingEdgeList, edgeRows);
+        }
+
+        if (actionPriorityList) {
+          const actionRows = buildActionPriorityRows(capitalRows, quality.byStock, settings);
+          renderActionPriority(actionPriorityList, actionRows);
+        }
+
         if (mistakeSummaryEl && mistakeListEl) {
           const stockRows = Object.keys(quality.byStock).map(stock => {
             const q = quality.byStock[stock];
@@ -597,17 +1024,31 @@ function loadInsights() {
           } else {
             mistakeListEl.innerHTML = stockRows.map(r => `
               <div class="txn-card">
-                <div class="split-row">
+                <div class="split-row" style="cursor:pointer" onclick="toggleMistakeDetails('mistake-${r.stock.replace(/\\s+/g, "-")}', this)">
                   <div class="left-col">
                     <div class="txn-name">${r.stock}</div>
                     <div class="tiny-label">Buys ${r.buys} | Sells ${r.sells}</div>
                   </div>
                   <div class="right-col">
                     <span class="status-pill-mini ${r.score >= 80 ? "ok" : r.score >= 60 ? "warn" : "bad"}">${r.score.toFixed(0)}</span>
+                    <i class="bi bi-chevron-down ms-2"></i>
                   </div>
                 </div>
                 <div class="tiny-label mt-1">
                   Chase: ${r.chaseBuys} | Weak Drop: ${r.weakDropBuys} | Over Alloc: ${r.overAllocBuys} | Panic Sells: ${r.panicSells}
+                </div>
+                <div id="mistake-${r.stock.replace(/\\s+/g, "-")}" style="display:none" class="mt-2">
+                  ${(r.details || []).length
+                    ? r.details.map(d => `
+                      <div class="section-shell">
+                        <div class="split-row">
+                          <div class="left-col tiny-label"><strong>${d.date}</strong> | ${d.type} | ${d.reason}</div>
+                        </div>
+                        <div class="tiny-label mt-1">${d.info}</div>
+                      </div>
+                    `).join("")
+                    : `<div class="tiny-label">No specific mistake-triggering transaction in current data.</div>`
+                  }
                 </div>
               </div>
             `).join("");
@@ -615,5 +1056,17 @@ function loadInsights() {
         }
       };
   });
+}
+
+function toggleMistakeDetails(id, rowEl) {
+  const panel = document.getElementById(id);
+  if (!panel) return;
+  const hidden = panel.style.display === "none";
+  panel.style.display = hidden ? "block" : "none";
+  const icon = rowEl?.querySelector("i.bi");
+  if (icon) {
+    icon.classList.remove("bi-chevron-up", "bi-chevron-down");
+    icon.classList.add(hidden ? "bi-chevron-up" : "bi-chevron-down");
+  }
 }
 

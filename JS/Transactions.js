@@ -271,7 +271,7 @@ function exportTransactionsCSV() {
       const rows = e.target.result || [];
       let csv = "#TRANSACTIONS_ONLY_EXPORT_V1\n\n";
       csv += "#TRANSACTIONS\n";
-      csv += "id,date,stock,type,qty,price,brokerage,dpCharge,createdAt,updatedAt\n";
+      csv += "id,date,stock,type,qty,price,brokerage,dpCharge,reason,note,createdAt,updatedAt\n";
       rows.forEach(t => {
         csv += `${txnCsvJoin([
           t.id,
@@ -282,6 +282,8 @@ function exportTransactionsCSV() {
           Number(t.price || 0),
           Number(t.brokerage || 0),
           Number(t.dpCharge || 0),
+          t.reason || "",
+          t.note || "",
           t.createdAt || "",
           t.updatedAt || ""
         ])}\n`;
@@ -333,8 +335,10 @@ function importTransactionsCSV() {
         price: Number(cols[5] || 0),
         brokerage: Number(cols[6] || 0),
         dpCharge: Number(cols[7] || 0),
-        createdAt: cols[8] || "",
-        updatedAt: cols[9] || ""
+        reason: cols[8] || "",
+        note: cols[9] || "",
+        createdAt: cols[10] || "",
+        updatedAt: cols[11] || ""
       });
     });
 
@@ -419,6 +423,8 @@ function initTransactionBackupControls() {
       const stock = normalizeStockName(stockInput.value);
       const qty = Number(qtyInput.value);
       const price = Number(priceInput.value);
+      const reason = (document.getElementById("txnReason")?.value || "").trim();
+      const note = (document.getElementById("txnNote")?.value || "").trim();
   
       if (!date || !stock || qty <= 0 || price <= 0) {
         if (typeof showToast === "function") {
@@ -438,6 +444,8 @@ function initTransactionBackupControls() {
           type,
           qty,
           price,
+          reason,
+          note,
           brokerage,   // Brokerage includes DP for SELL
           dpCharge: 0  // Stored only for display (not re-added)
         };
@@ -551,6 +559,8 @@ function bindFilterEvents() {
           t.type === "BUY"
             ? (t.qty * t.price + brokerage).toFixed(2)
             : null;
+        const reasonText = t.reason ? ` | ${t.reason}` : "";
+        const noteText = t.note ? ` | ${t.note}` : "";
   
         txnList.innerHTML += `
           <div class="txn-card">
@@ -560,6 +570,8 @@ function bindFilterEvents() {
                 <div class="txn-sub">
                   ${t.date} | ${t.type} | Qty ${t.qty} @ ₹${t.price.toFixed(2)}
                   ${buyCost ? ` | Buy Cost ₹${buyCost}` : ""}
+                  ${reasonText}
+                  ${noteText}
                 </div>
               </div>
               <div class="txn-actions">
@@ -574,6 +586,19 @@ function bindFilterEvents() {
           </div>`;
       });
   }
+
+function toggleTxnHistory() {
+  const panel = document.getElementById("txnHistoryPanel");
+  const btn = document.getElementById("toggleTxnHistoryBtn");
+  if (!panel || !btn) return;
+  const hidden = panel.style.display === "none";
+  panel.style.display = hidden ? "block" : "none";
+  const icon = btn.querySelector("i");
+  if (icon) {
+    icon.classList.remove("bi-chevron-up", "bi-chevron-down");
+    icon.classList.add(hidden ? "bi-chevron-up" : "bi-chevron-down");
+  }
+}
   
   function editTxn(id) {
     db.transaction("transactions", "readonly")
@@ -586,6 +611,10 @@ function bindFilterEvents() {
         stockInput.value = normalizeStockName(t.stock);
         qtyInput.value = t.qty;
         priceInput.value = t.price;
+        const reasonEl = document.getElementById("txnReason");
+        const noteEl = document.getElementById("txnNote");
+        if (reasonEl) reasonEl.value = t.reason || "";
+        if (noteEl) noteEl.value = t.note || "";
 
         if (typeof showToast === "function") {
           showToast(`Editing ${t.stock} transaction`, "info");
@@ -858,7 +887,7 @@ function renderGroupedPnL(data) {
               </div>
               <div class="split-row pnl-kv">
                 <div class="left-col">Buy Cost</div>
-                <div class="right-col">₹${t.buyCost.toFixed(2)}</div>
+                <div class="right-col">₹${t.buyCost.toFixed(2)} | ₹${(t.buyCost / Math.max(1, t.qty)).toFixed(2)}/qty</div>
               </div>
               <div class="split-row pnl-kv">
                 <div class="left-col">Buy Brkg</div>

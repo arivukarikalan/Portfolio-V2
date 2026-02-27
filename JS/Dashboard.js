@@ -38,41 +38,43 @@ function formatMonthId(monthId) {
    ========================================================= */
 function loadDashboardAnalytics() {
   const range = document.getElementById("dashRange")?.value || "1";
+  getSettings(settings => {
+    db.transaction("transactions", "readonly")
+      .objectStore("transactions")
+      .getAll().onsuccess = e => {
+        const txns = e.target.result.sort(
+          (a, b) => new Date(a.date) - new Date(b.date)
+        );
 
-  db.transaction("transactions", "readonly")
-    .objectStore("transactions")
-    .getAll().onsuccess = e => {
-      const txns = e.target.result.sort(
-        (a, b) => new Date(a.date) - new Date(b.date)
-      );
+        // FIFO must run on full data for correct realized P/L
+        const pnlData = buildRealisedPnL(txns, settings);
+        const monthlyContribution = buildMonthlyContributionFromActiveHoldings(txns, settings);
 
-      // FIFO must run on full data for correct realized P/L
-      const pnlData = buildRealisedPnL(txns);
-      const monthlyContribution = buildMonthlyContributionFromActiveHoldings(txns);
-
-      // Apply range after calculations
-      const filtered = filterDashboardByRange(pnlData, range);
-      renderDashboardSummary(txns, filtered.byStock);
-      renderMonthlyChart(filtered.monthly);
-      renderMonthlyContributionTable(monthlyContribution);
-      renderStockTable(filtered.byStock);
-      renderTopPerformance(filtered.byStock);
-      renderBestWorst(filtered.byStock);
-      renderWinLoss(filtered.trades);
-    };
+        // Apply range after calculations
+        const filtered = filterDashboardByRange(pnlData, range);
+        renderDashboardSummary(txns, filtered.byStock, settings);
+        renderMonthlyChart(filtered.monthly);
+        renderMonthlyContributionTable(monthlyContribution);
+        renderStockTable(filtered.byStock);
+        renderTopPerformance(filtered.byStock);
+        renderBestWorst(filtered.byStock);
+        renderWinLoss(filtered.trades);
+      };
+  });
 }
 
-function buildActiveLots(txns) {
+function buildActiveLots(txns, settings) {
   const map = {};
 
   txns.forEach(t => {
     map[t.stock] ??= { lots: [] };
 
     if (t.type === "BUY") {
+      const buyBrkg = resolveTxnBrokerage(t, settings);
       map[t.stock].lots.push({
         qty: t.qty,
         price: t.price,
-        brokeragePerUnit: t.brokerage / t.qty,
+        brokeragePerUnit: buyBrkg / t.qty,
         date: t.date
       });
       return;
@@ -91,8 +93,8 @@ function buildActiveLots(txns) {
   return map;
 }
 
-function buildMonthlyContributionFromActiveHoldings(txns) {
-  const map = buildActiveLots(txns);
+function buildMonthlyContributionFromActiveHoldings(txns, settings) {
+  const map = buildActiveLots(txns, settings);
   const monthly = {};
 
   for (const stock in map) {
@@ -110,7 +112,7 @@ function buildMonthlyContributionFromActiveHoldings(txns) {
 /* =========================================================
    FIFO-BASED REALISED P/L (SAME CORE AS P/L PAGE)
    ========================================================= */
-function buildRealisedPnL(txns) {
+function buildRealisedPnL(txns, settings) {
   const fifo = {};
   const monthly = {};
   const byStock = {};
@@ -121,10 +123,11 @@ function buildRealisedPnL(txns) {
     fifo[t.stock] ??= [];
 
     if (t.type === "BUY") {
+      const buyBrkg = resolveTxnBrokerage(t, settings);
       fifo[t.stock].push({
         qty: t.qty,
         price: t.price,
-        brokeragePerUnit: t.brokerage / t.qty,
+        brokeragePerUnit: buyBrkg / t.qty,
         date: t.date
       });
     }
@@ -153,7 +156,8 @@ function buildRealisedPnL(txns) {
       }
 
       const sellValue = t.qty * t.price;
-      const net = sellValue - buyCost - buyBrokerage - t.brokerage;
+      const sellBrkg = resolveTxnBrokerage(t, settings);
+      const net = sellValue - buyCost - buyBrokerage - sellBrkg;
       const invested = buyCost + buyBrokerage;
       const avgHoldDays = consumedQty > 0 ? weightedHoldDaysSum / consumedQty : 0;
       const returnPct = invested > 0 ? (net / invested) * 100 : 0;
@@ -194,10 +198,10 @@ function buildRealisedPnL(txns) {
 /* =========================================================
    DASHBOARD SUMMARY
    ========================================================= */
-function renderDashboardSummary(txns, filteredByStock) {
+function renderDashboardSummary(txns, filteredByStock, settings) {
   let activeHoldings = 0;
   let totalInvested = 0;
-  const map = buildActiveLots(txns);
+  const map = buildActiveLots(txns, settings);
 
   for (const stock in map) {
     const lots = map[stock].lots;

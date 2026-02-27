@@ -93,6 +93,27 @@
         <input id="txnDate" type="date" class="form-control">
       </div>
 
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label">Reason</label>
+          <select id="txnReason" class="form-select">
+            <option value="">Select reason</option>
+            <option value="Dip Buy">Dip Buy</option>
+            <option value="Breakout">Breakout</option>
+            <option value="News/Event">News/Event</option>
+            <option value="Result/Earnings">Result/Earnings</option>
+            <option value="Rebalance">Rebalance</option>
+            <option value="Profit Booking">Profit Booking</option>
+            <option value="Stop Loss">Stop Loss</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Note (optional)</label>
+          <input id="txnNote" class="form-control" placeholder="Short note">
+        </div>
+      </div>
+
       <div class="d-grid gap-2">
         <button id="runPreBuyChecklist" type="button" class="btn btn-outline-primary">
           <i class="bi bi-check2-square"></i> Run Pre-Buy Checklist
@@ -159,8 +180,15 @@
        FEATURE: Transaction History
        ================================================= -->
   <section class="list-shell">
-    <div class="section-title">History</div>
-    <div id="txnList"></div>
+    <div class="split-row">
+      <div class="section-title mb-0">History</div>
+      <button id="toggleTxnHistoryBtn" class="icon-toggle-btn" type="button" aria-label="Toggle transaction history" onclick="toggleTxnHistory()">
+        <i class="bi bi-chevron-down"></i>
+      </button>
+    </div>
+    <div id="txnHistoryPanel" style="display:none">
+      <div id="txnList"></div>
+    </div>
   </section>
 
 </div>

@@ -55,8 +55,11 @@
       <div>
         <h3 class="panel-title"><i class="bi bi-pie-chart"></i> Portfolio Allocation</h3>
       </div>
+      <button class="icon-toggle-btn" type="button" aria-label="Toggle Portfolio Allocation" onclick="toggleInsightsSection('allocationSection', this)">
+        <i class="bi bi-chevron-down"></i>
+      </button>
     </div>
-    <div class="panel-body tight">
+    <div class="panel-body tight" id="allocationSection" style="display:none">
       <div id="allocationList"></div>
     </div>
   </section>
@@ -67,11 +70,11 @@
         <h3 class="panel-title"><i class="bi bi-shield-exclamation"></i> Mistake Tracker Score</h3>
         <p class="panel-note">Tracks chase buys, weak drops, over-allocation buys, and panic sells.</p>
       </div>
-      <button id="toggleMistakeBtn" class="btn btn-sm btn-outline-primary" type="button" onclick="toggleMistakeTracker()">
-        Hide
+      <button class="icon-toggle-btn" type="button" aria-label="Toggle Mistake Tracker" onclick="toggleInsightsSection('mistakeTrackerPanel', this)">
+        <i class="bi bi-chevron-down"></i>
       </button>
     </div>
-    <div class="panel-body tight" id="mistakeTrackerPanel">
+    <div class="panel-body tight" id="mistakeTrackerPanel" style="display:none">
       <div id="mistakeTrackerSummary"></div>
       <div id="mistakeTrackerList" class="mt-2"></div>
     </div>
@@ -83,8 +86,11 @@
         <h3 class="panel-title"><i class="bi bi-signpost-split"></i> Sell Discipline Assistant</h3>
         <p class="panel-note">Rule-based Hold / Trim / Exit suggestion for active holdings.</p>
       </div>
+      <button class="icon-toggle-btn" type="button" aria-label="Toggle Sell Discipline" onclick="toggleInsightsSection('sellAssistantPanel', this)">
+        <i class="bi bi-chevron-down"></i>
+      </button>
     </div>
-    <div class="panel-body tight">
+    <div class="panel-body tight" id="sellAssistantPanel" style="display:none">
       <div class="tiny-label mb-2">Reference price uses latest transaction price (not live market feed).</div>
       <div id="sellAssistantList"></div>
     </div>
@@ -98,8 +104,11 @@
       <div>
         <h3 class="panel-title"><i class="bi bi-arrow-down-circle"></i> Average Down Levels</h3>
       </div>
+      <button class="icon-toggle-btn" type="button" aria-label="Toggle Average Down" onclick="toggleInsightsSection('avgDownSection', this)">
+        <i class="bi bi-chevron-down"></i>
+      </button>
     </div>
-    <div class="panel-body tight">
+    <div class="panel-body tight" id="avgDownSection" style="display:none">
       <div id="avgDownList"></div>
     </div>
   </section>
@@ -110,12 +119,72 @@
         <h3 class="panel-title"><i class="bi bi-stars"></i> Advanced Analysis</h3>
         <p class="panel-note">Stock-wise active cycle buy quality, layer checks, and next actions.</p>
       </div>
-      <button id="toggleAdvancedBtn" class="btn btn-sm btn-outline-primary" type="button" onclick="toggleAdvancedInsights()">
-        Show
+      <button class="icon-toggle-btn" type="button" aria-label="Toggle Advanced Analysis" onclick="toggleInsightsSection('advancedInsightsPanel', this)">
+        <i class="bi bi-chevron-down"></i>
       </button>
     </div>
     <div class="panel-body tight" id="advancedInsightsPanel" style="display:none">
       <div id="advancedInsightsList"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-journal-text"></i> Reason Outcome Review</h3>
+        <p class="panel-note">Which buy reasons actually worked over 30 / 60 / 90 day holds.</p>
+      </div>
+      <button class="icon-toggle-btn" type="button" aria-label="Toggle Reason Outcome Review" onclick="toggleInsightsSection('reasonOutcomePanel', this)">
+        <i class="bi bi-chevron-down"></i>
+      </button>
+    </div>
+    <div class="panel-body tight" id="reasonOutcomePanel" style="display:none">
+      <div id="reasonOutcomeList"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-speedometer2"></i> Capital Efficiency Ranking</h3>
+        <p class="panel-note">Ranks stocks by return%, holding time, and deployed capital.</p>
+      </div>
+      <button class="icon-toggle-btn" type="button" aria-label="Toggle Capital Efficiency Ranking" onclick="toggleInsightsSection('capitalEfficiencyPanel', this)">
+        <i class="bi bi-chevron-down"></i>
+      </button>
+    </div>
+    <div class="panel-body tight" id="capitalEfficiencyPanel" style="display:none">
+      <div id="capitalEfficiencyList"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-clock-history"></i> Holding Period Edge</h3>
+        <p class="panel-note">Find which holding window gives your best realized return discipline.</p>
+      </div>
+      <button class="icon-toggle-btn" type="button" aria-label="Toggle Holding Period Edge" onclick="toggleInsightsSection('holdingEdgePanel', this)">
+        <i class="bi bi-chevron-down"></i>
+      </button>
+    </div>
+    <div class="panel-body tight" id="holdingEdgePanel" style="display:none">
+      <div id="holdingEdgeList"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-list-check"></i> Action Priority Queue</h3>
+        <p class="panel-note">Top stocks that need immediate attention based on risk, return, and discipline signals.</p>
+      </div>
+      <button class="icon-toggle-btn" type="button" aria-label="Toggle Action Priority Queue" onclick="toggleInsightsSection('actionPriorityPanel', this)">
+        <i class="bi bi-chevron-down"></i>
+      </button>
+    </div>
+    <div class="panel-body tight" id="actionPriorityPanel" style="display:none">
+      <div id="actionPriorityList"></div>
     </div>
   </section>
 

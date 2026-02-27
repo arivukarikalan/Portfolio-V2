@@ -293,10 +293,10 @@ function exportCSV() {
 
     /* TRANSACTIONS */
     csv += "#TRANSACTIONS\n";
-    csv += "id,date,stock,type,qty,price,brokerage,dpCharge\n";
+    csv += "id,date,stock,type,qty,price,brokerage,dpCharge,reason,note\n";
 
     transactions.forEach(t => {
-      csv += `${csvJoin([t.id, t.date, t.stock, t.type, t.qty, t.price, t.brokerage, t.dpCharge])}\n`;
+      csv += `${csvJoin([t.id, t.date, t.stock, t.type, t.qty, t.price, t.brokerage, t.dpCharge, t.reason || "", t.note || ""])}\n`;
     });
 
     csv += "\n#DEBT_BORROWS\n";
@@ -456,7 +456,9 @@ function processCSV(text) {
         qty: Number(cols[4]),
         price: Number(cols[5]),
         brokerage: Number(cols[6]),
-        dpCharge: Number(cols[7])
+        dpCharge: Number(cols[7]),
+        reason: cols[8] || "",
+        note: cols[9] || ""
       });
     }
 

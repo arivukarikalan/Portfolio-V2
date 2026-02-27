@@ -264,6 +264,24 @@
   font-weight: 800;
 }
 
+.icon-toggle-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  background: color-mix(in oklab, var(--card) 92%, #eaf2ff);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.icon-toggle-btn i {
+  font-size: 12px;
+  line-height: 1;
+}
+
 .panel-note {
   margin: 2px 0 0;
   font-size: 12px;
@@ -747,6 +765,12 @@ body.dark .panel-head {
   background: color-mix(in oklab, var(--card) 90%, #12213a);
 }
 
+body.dark .icon-toggle-btn {
+  border-color: color-mix(in oklab, var(--border) 78%, #2a446e);
+  background: color-mix(in oklab, var(--card) 86%, #1a2b46);
+  color: #bfd4f1;
+}
+
 body.dark .tiny-label,
 body.dark .panel-note,
 body.dark .hero-sub {
@@ -837,4 +861,96 @@ body.dark .risk-pill.warn {
 body.dark .risk-pill.bad {
   background: rgba(239, 68, 68, 0.2);
   color: #fca5a5;
+}
+
+/* ================= GLOBAL LEGIBILITY + HIGHLIGHT PASS ================= */
+body {
+  font-size: 14.5px;
+}
+
+.app-title {
+  font-size: 1.06rem;
+}
+
+.section-title {
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.txn-name {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.tiny-label,
+.panel-note,
+.hero-sub,
+.txn-sub {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.metric-strong {
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.pnl-net {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.profit {
+  color: #059669 !important;
+  font-weight: 800;
+}
+
+.loss {
+  color: #dc2626 !important;
+  font-weight: 800;
+}
+
+.pnl-txn .split-row .right-col,
+.txn-card .split-row .right-col {
+  font-weight: 700;
+}
+
+.pnl-txn .tiny-label,
+.txn-card .tiny-label {
+  color: color-mix(in oklab, var(--muted) 82%, var(--text));
+}
+
+.status-pill-mini {
+  font-weight: 800;
+}
+
+/* Slightly stronger contrast in dark mode */
+body.dark .tiny-label,
+body.dark .panel-note,
+body.dark .hero-sub,
+body.dark .txn-sub {
+  color: #c7d6ec;
+}
+
+body.dark .metric-strong,
+body.dark .stat-value,
+body.dark .pnl-net {
+  color: #f3f8ff;
+}
+
+body.dark .profit {
+  color: #34d399 !important;
+}
+
+body.dark .loss {
+  color: #fb7185 !important;
+}
+
+body.dark .txn-card .split-row .right-col {
+  color: #e6f0ff;
 }
