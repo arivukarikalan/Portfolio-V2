@@ -132,6 +132,26 @@
 </div>
 </section>
 
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h3 class="panel-title"><i class="bi bi-cloud-arrow-up"></i> Transaction Backup</h3>
+      <p class="panel-note">Export or import only transaction records from this page.</p>
+    </div>
+  </div>
+  <div class="panel-body tight">
+    <div class="d-flex gap-2">
+      <button id="txnExportBtn" type="button" class="btn btn-primary flex-fill">
+        <i class="bi bi-download"></i> Export Txn CSV
+      </button>
+      <button id="txnImportBtn" type="button" class="btn btn-outline-secondary flex-fill">
+        <i class="bi bi-upload"></i> Import Txn CSV
+      </button>
+      <input id="txnImportFile" type="file" accept=".csv,text/csv" hidden>
+    </div>
+  </div>
+</section>
+
   <!-- =================================================
        FEATURE: Transaction History
        ================================================= -->
@@ -199,6 +219,7 @@
     initTransactionForm();
     initTransactionFilters();
     bindFilterEvents();
+    initTransactionBackupControls();
     loadTransactions();
   });
 </script>

@@ -66,6 +66,144 @@ function refreshStockOptions() {
     };
 }
 
+function txnCsvCell(value) {
+  const v = value == null ? "" : String(value);
+  if (/[",\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
+  return v;
+}
+
+function txnCsvJoin(values) {
+  return values.map(txnCsvCell).join(",");
+}
+
+function txnParseCsvRow(line) {
+  const out = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === "," && !inQuotes) {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function exportTransactionsCSV() {
+  db.transaction("transactions", "readonly")
+    .objectStore("transactions")
+    .getAll().onsuccess = e => {
+      const rows = e.target.result || [];
+      let csv = "#TRANSACTIONS_ONLY_EXPORT_V1\n\n";
+      csv += "#TRANSACTIONS\n";
+      csv += "id,date,stock,type,qty,price,brokerage,dpCharge,createdAt,updatedAt\n";
+      rows.forEach(t => {
+        csv += `${txnCsvJoin([
+          t.id,
+          t.date,
+          normalizeStockName(t.stock),
+          t.type,
+          Number(t.qty || 0),
+          Number(t.price || 0),
+          Number(t.brokerage || 0),
+          Number(t.dpCharge || 0),
+          t.createdAt || "",
+          t.updatedAt || ""
+        ])}\n`;
+      });
+
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `transactions_backup_${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      if (typeof showToast === "function") showToast("Transaction CSV exported successfully");
+    };
+}
+
+function importTransactionsCSV() {
+  const fileInput = document.getElementById("txnImportFile");
+  const file = fileInput?.files?.[0];
+  if (!file) {
+    if (typeof showToast === "function") showToast("Please select a transaction CSV file", "error");
+    return;
+  }
+  if (!confirm("This will overwrite all transaction records only. Continue?")) return;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const lines = String(ev.target?.result || "").split(/\r?\n/);
+    let mode = "";
+    const transactions = [];
+
+    lines.forEach(raw => {
+      const line = raw.trim();
+      if (!line) return;
+      if (line.startsWith("#")) {
+        if (line === "#TRANSACTIONS") mode = "TRANSACTIONS";
+        return;
+      }
+      if (line.toLowerCase().startsWith("id,")) return;
+      if (mode !== "TRANSACTIONS") return;
+
+      const cols = txnParseCsvRow(line);
+      transactions.push({
+        id: Number(cols[0]),
+        date: cols[1] || "",
+        stock: normalizeStockName(cols[2]),
+        type: cols[3] === "SELL" ? "SELL" : "BUY",
+        qty: Number(cols[4] || 0),
+        price: Number(cols[5] || 0),
+        brokerage: Number(cols[6] || 0),
+        dpCharge: Number(cols[7] || 0),
+        createdAt: cols[8] || "",
+        updatedAt: cols[9] || ""
+      });
+    });
+
+    const tx = db.transaction("transactions", "readwrite");
+    tx.objectStore("transactions").clear();
+    tx.oncomplete = () => {
+      const tx2 = db.transaction("transactions", "readwrite");
+      transactions.forEach(t => tx2.objectStore("transactions").add(t));
+      tx2.oncomplete = () => {
+        if (fileInput) fileInput.value = "";
+        loadTransactions();
+        calculateHoldings();
+        calculatePnL();
+        loadDashboard();
+        refreshStockOptions();
+        if (typeof showToast === "function") showToast("Transaction CSV imported successfully");
+      };
+    };
+  };
+  reader.readAsText(file);
+}
+
+function initTransactionBackupControls() {
+  const exportBtn = document.getElementById("txnExportBtn");
+  const importBtn = document.getElementById("txnImportBtn");
+  const importFile = document.getElementById("txnImportFile");
+  if (!exportBtn || !importBtn || !importFile) return;
+
+  exportBtn.addEventListener("click", exportTransactionsCSV);
+  importBtn.addEventListener("click", () => importFile.click());
+  importFile.addEventListener("change", importTransactionsCSV);
+}
+
 /* =========================================================
    FEATURE 1: BROKERAGE CALCULATION
    RULES:

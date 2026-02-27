@@ -1,3 +1,5 @@
+let debtCombinedTxns = [];
+
 function debtToday() {
   return new Date().toISOString().split("T")[0];
 }
@@ -154,30 +156,91 @@ function debtProcessCSV(text) {
   };
 }
 
+function buildDebtTransactions(borrows, repays) {
+  const borrowRows = borrows.map(b => ({
+    date: b.date || "",
+    lender: String(b.lender || "").trim(),
+    type: "BORROW",
+    amount: Number(b.amount || 0),
+    interestPct: Number(b.interestPct || 0),
+    category: b.category || "",
+    note: b.note || ""
+  }));
+
+  const repayRows = repays.map(r => ({
+    date: r.date || "",
+    lender: String(r.lender || "").trim(),
+    type: "REPAY",
+    amount: Number(r.amount || 0),
+    interestPct: 0,
+    category: "",
+    note: r.note || ""
+  }));
+
+  return [...borrowRows, ...repayRows].sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+function renderDebtTxnTable() {
+  const tbody = document.getElementById("debtTxnTableBody");
+  if (!tbody) return;
+
+  const type = document.getElementById("debtTxnType")?.value || "ALL";
+  const from = document.getElementById("debtTxnFrom")?.value || "";
+  const to = document.getElementById("debtTxnTo")?.value || "";
+  const lenderFilter = (document.getElementById("debtTxnLender")?.value || "").trim().toLowerCase();
+
+  const filtered = debtCombinedTxns.filter(t => {
+    if (type !== "ALL" && t.type !== type) return false;
+    if (from && new Date(t.date) < new Date(from)) return false;
+    if (to && new Date(t.date) > new Date(to)) return false;
+    if (lenderFilter && !t.lender.toLowerCase().includes(lenderFilter)) return false;
+    return true;
+  });
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">No debt transactions</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(t => `
+    <tr>
+      <td>${t.date}</td>
+      <td>${t.lender || "-"}</td>
+      <td><span class="badge ${t.type === "BORROW" ? "text-bg-warning" : "text-bg-success"}">${t.type}</span></td>
+      <td class="text-end">₹${t.amount.toFixed(2)}</td>
+    </tr>
+  `).join("");
+}
+
 async function renderDebtData() {
   const [borrows, repays] = await Promise.all([
     debtLoadArray("debt_borrows"),
     debtLoadArray("debt_repays")
   ]);
 
+  debtCombinedTxns = buildDebtTransactions(borrows, repays);
+  renderDebtTxnTable();
+
   const map = {};
   borrows.forEach(b => {
-    const k = String(b.lender || "").trim().toUpperCase();
-    if (!k) return;
-    map[k] ??= { lender: b.lender, borrowed: 0, repaid: 0, interestMax: 0, earliestDate: b.date };
-    map[k].borrowed += Number(b.amount || 0);
-    map[k].interestMax = Math.max(map[k].interestMax, Number(b.interestPct || 0));
-    if (!map[k].earliestDate || (b.date && b.date < map[k].earliestDate)) map[k].earliestDate = b.date;
-  });
-  repays.forEach(r => {
-    const k = String(r.lender || "").trim().toUpperCase();
-    if (!k) return;
-    map[k] ??= { lender: r.lender, borrowed: 0, repaid: 0, interestMax: 0, earliestDate: r.date };
-    map[k].repaid += Number(r.amount || 0);
-    if (!map[k].earliestDate || (r.date && r.date < map[k].earliestDate)) map[k].earliestDate = r.date;
+    const key = String(b.lender || "").trim().toUpperCase();
+    if (!key) return;
+    map[key] ??= { lender: b.lender, borrowed: 0, repaid: 0, interestMax: 0, earliestDate: b.date };
+    map[key].borrowed += Number(b.amount || 0);
+    map[key].interestMax = Math.max(map[key].interestMax, Number(b.interestPct || 0));
+    if (!map[key].earliestDate || (b.date && b.date < map[key].earliestDate)) map[key].earliestDate = b.date;
   });
 
-  const rows = Object.values(map).map(x => ({ ...x, remaining: Math.max(0, x.borrowed - x.repaid) }))
+  repays.forEach(r => {
+    const key = String(r.lender || "").trim().toUpperCase();
+    if (!key) return;
+    map[key] ??= { lender: r.lender, borrowed: 0, repaid: 0, interestMax: 0, earliestDate: r.date };
+    map[key].repaid += Number(r.amount || 0);
+    if (!map[key].earliestDate || (r.date && r.date < map[key].earliestDate)) map[key].earliestDate = r.date;
+  });
+
+  const rows = Object.values(map)
+    .map(x => ({ ...x, remaining: Math.max(0, x.borrowed - x.repaid) }))
     .filter(x => x.borrowed > 0 || x.repaid > 0)
     .sort((a, b) => b.remaining - a.remaining);
 
@@ -214,14 +277,13 @@ async function renderDebtData() {
   }
 
   const lenderOptions = document.getElementById("lenderOptions");
-  if (lenderOptions) {
-    lenderOptions.innerHTML = rows.map(r => `<option value="${r.lender}"></option>`).join("");
-  }
+  if (lenderOptions) lenderOptions.innerHTML = rows.map(r => `<option value="${r.lender}"></option>`).join("");
 
   const planEl = document.getElementById("debtPlan");
   const monthlyBudget = Number(localStorage.getItem("debt_monthly_budget") || 0);
   const investFloor = Number(localStorage.getItem("debt_invest_floor") || 0);
   const available = Math.max(0, monthlyBudget - investFloor);
+
   if (planEl) {
     if (!outstanding || !available) {
       planEl.innerHTML = `<div class="tiny-label">Set monthly budget and investment floor to see closure estimate.</div>`;
@@ -294,6 +356,15 @@ function debtAddRepay(e) {
   };
 }
 
+function bindDebtTxnFilters() {
+  ["debtTxnType", "debtTxnFrom", "debtTxnTo", "debtTxnLender"].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("input", renderDebtTxnTable);
+    el.addEventListener("change", renderDebtTxnTable);
+  });
+}
+
 function loadDebtPage() {
   const borDate = document.getElementById("borDate");
   const repDate = document.getElementById("repDate");
@@ -308,10 +379,11 @@ function loadDebtPage() {
   const exportBtn = document.getElementById("debtExportBtn");
   const importBtn = document.getElementById("debtImportBtn");
   const importFile = document.getElementById("debtImportFile");
-
   exportBtn?.addEventListener("click", debtExportCSV);
   importBtn?.addEventListener("click", () => importFile?.click());
   importFile?.addEventListener("change", debtImportCSV);
+
+  bindDebtTxnFilters();
 
   document.getElementById("borrowForm")?.addEventListener("submit", debtAddBorrow);
   document.getElementById("repayForm")?.addEventListener("submit", debtAddRepay);
