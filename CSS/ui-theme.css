@@ -378,6 +378,45 @@
   color: #991b1b;
 }
 
+.status-pill-mini.warn {
+  background: #fff4d6;
+  color: #b45309;
+}
+
+.advanced-card {
+  border-left: 3px solid color-mix(in oklab, var(--blue) 65%, transparent);
+}
+
+.advanced-layer-row {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.advanced-timeline {
+  margin-top: 8px;
+  border-top: 1px dashed color-mix(in oklab, var(--border) 78%, transparent);
+  padding-top: 8px;
+}
+
+.advanced-buy-row {
+  padding: 7px 0;
+  border-bottom: 1px dashed color-mix(in oklab, var(--border) 75%, transparent);
+}
+
+.advanced-buy-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+
+.advanced-badges {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .suggestion-row {
   margin-top: 5px;
   display: flex;
@@ -550,6 +589,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  align-self: center;
 }
 
 .page-pnl .pnl-details,
@@ -713,6 +753,16 @@ body.dark .hero-sub {
   color: #b7c7df;
 }
 
+body.dark .page-dashboard #dashInvested,
+body.dark .page-dashboard #dashHoldings,
+body.dark .page-dashboard #dashNetPnL {
+  color: #eaf2ff !important;
+}
+
+body.dark .page-dashboard .card .section-title {
+  color: #b9cbe7 !important;
+}
+
 body.dark .page-pnl .pnl-header i,
 body.dark .page-analytics .pnl-header i {
   background: rgba(90, 162, 255, 0.16);
@@ -757,6 +807,11 @@ body.dark .status-pill-mini.ok {
 body.dark .status-pill-mini.bad {
   background: rgba(239, 68, 68, 0.2);
   color: #fca5a5;
+}
+
+body.dark .status-pill-mini.warn {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fcd34d;
 }
 
 body.dark .suggestion-row {

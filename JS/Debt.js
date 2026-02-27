@@ -377,11 +377,7 @@ function loadDebtPage() {
   if (investFloor) investFloor.value = localStorage.getItem("debt_invest_floor") || "";
 
   const exportBtn = document.getElementById("debtExportBtn");
-  const importBtn = document.getElementById("debtImportBtn");
-  const importFile = document.getElementById("debtImportFile");
   exportBtn?.addEventListener("click", debtExportCSV);
-  importBtn?.addEventListener("click", () => importFile?.click());
-  importFile?.addEventListener("change", debtImportCSV);
 
   bindDebtTxnFilters();
 

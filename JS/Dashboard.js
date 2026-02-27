@@ -56,6 +56,7 @@ function loadDashboardAnalytics() {
       renderMonthlyChart(filtered.monthly);
       renderMonthlyContributionTable(monthlyContribution);
       renderStockTable(filtered.byStock);
+      renderTopPerformance(filtered.byStock);
       renderBestWorst(filtered.byStock);
       renderWinLoss(filtered.trades);
     };
@@ -123,7 +124,8 @@ function buildRealisedPnL(txns) {
       fifo[t.stock].push({
         qty: t.qty,
         price: t.price,
-        brokeragePerUnit: t.brokerage / t.qty
+        brokeragePerUnit: t.brokerage / t.qty,
+        date: t.date
       });
     }
 
@@ -131,6 +133,8 @@ function buildRealisedPnL(txns) {
       let sellQty = t.qty;
       let buyCost = 0;
       let buyBrokerage = 0;
+      let consumedQty = 0;
+      let weightedHoldDaysSum = 0;
 
       while (sellQty > 0 && fifo[t.stock].length) {
         const lot = fifo[t.stock][0];
@@ -138,6 +142,9 @@ function buildRealisedPnL(txns) {
 
         buyCost += used * lot.price;
         buyBrokerage += used * lot.brokeragePerUnit;
+        consumedQty += used;
+        const holdDays = Math.max(0, Math.floor((parseDateLocal(t.date) - parseDateLocal(lot.date)) / 86400000));
+        weightedHoldDaysSum += used * holdDays;
 
         lot.qty -= used;
         sellQty -= used;
@@ -147,20 +154,27 @@ function buildRealisedPnL(txns) {
 
       const sellValue = t.qty * t.price;
       const net = sellValue - buyCost - buyBrokerage - t.brokerage;
+      const invested = buyCost + buyBrokerage;
+      const avgHoldDays = consumedQty > 0 ? weightedHoldDaysSum / consumedQty : 0;
+      const returnPct = invested > 0 ? (net / invested) * 100 : 0;
 
       const monthKey = monthIdFromDate(t.date);
       monthly[monthKey] = (monthly[monthKey] || 0) + net;
-      realizedTrades.push({ stock: t.stock, net, date: t.date });
+      realizedTrades.push({ stock: t.stock, net, date: t.date, invested, holdDays: avgHoldDays, returnPct });
 
       byStock[t.stock] ??= {
         pnl: 0,
         trades: 0,
         win: 0,
-        loss: 0
+        loss: 0,
+        invested: 0,
+        holdDaysWeightedByInvested: 0
       };
 
       byStock[t.stock].pnl += net;
       byStock[t.stock].trades += 1;
+      byStock[t.stock].invested += invested;
+      byStock[t.stock].holdDaysWeightedByInvested += avgHoldDays * invested;
 
       if (net >= 0) {
         byStock[t.stock].win += 1;
@@ -224,9 +238,18 @@ function filterDashboardByRange(pnlData, range) {
     const key = monthIdFromDate(t.date);
     filteredMonthly[key] = (filteredMonthly[key] || 0) + t.net;
 
-    filteredStock[t.stock] ??= { pnl: 0, trades: 0, win: 0, loss: 0 };
+    filteredStock[t.stock] ??= {
+      pnl: 0,
+      trades: 0,
+      win: 0,
+      loss: 0,
+      invested: 0,
+      holdDaysWeightedByInvested: 0
+    };
     filteredStock[t.stock].pnl += t.net;
     filteredStock[t.stock].trades += 1;
+    filteredStock[t.stock].invested += Number(t.invested || 0);
+    filteredStock[t.stock].holdDaysWeightedByInvested += Number(t.holdDays || 0) * Number(t.invested || 0);
 
     if (t.net >= 0) {
       filteredStock[t.stock].win += 1;
@@ -252,6 +275,11 @@ function filterDashboardByRange(pnlData, range) {
 function renderMonthlyChart(pnlMap) {
   const ctx = document.getElementById("monthlyChart");
   if (!ctx) return;
+  const styles = getComputedStyle(document.body);
+  const axisTextColor = styles.getPropertyValue("--muted").trim() || "#9fb0c9";
+  const gridColor = document.body.classList.contains("dark")
+    ? "rgba(148, 163, 184, 0.14)"
+    : "rgba(100, 116, 139, 0.18)";
 
   const labels = Object.keys(pnlMap)
     .sort((a, b) => a.localeCompare(b));
@@ -276,7 +304,22 @@ function renderMonthlyChart(pnlMap) {
     options: {
       responsive: true,
       plugins: {
-        legend: { display: true }
+        legend: {
+          display: true,
+          labels: {
+            color: axisTextColor
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: axisTextColor },
+          grid: { color: gridColor }
+        },
+        y: {
+          ticks: { color: axisTextColor },
+          grid: { color: gridColor }
+        }
       },
       onClick: (_, elements) => {
         if (!elements.length) return;
@@ -338,6 +381,45 @@ function renderStockTable(data) {
         </tr>
       `;
     });
+}
+
+function renderTopPerformance(data) {
+  const list = document.getElementById("topPerformanceList");
+  if (!list) return;
+
+  const rows = Object.entries(data)
+    .map(([stock, d]) => {
+      const invested = Number(d.invested || 0);
+      const avgDays = invested > 0 ? (Number(d.holdDaysWeightedByInvested || 0) / invested) : 0;
+      const returnPct = invested > 0 ? (Number(d.pnl || 0) / invested) * 100 : 0;
+      const speedFactor = 365 / (avgDays + 30);
+      const sizeFactor = Math.log10(invested + 10);
+      const score = returnPct * speedFactor * sizeFactor;
+      return { stock, invested, avgDays, returnPct, score, pnl: Number(d.pnl || 0) };
+    })
+    .filter(r => r.invested > 0 && r.returnPct > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+
+  if (!rows.length) {
+    list.innerHTML = `<div class="txn-card text-center text-muted">No positive performance data in selected range</div>`;
+    return;
+  }
+
+  list.innerHTML = rows.map((r, idx) => `
+    <div class="txn-card">
+      <div class="split-row">
+        <div class="left-col">
+          <div class="txn-name">#${idx + 1} ${r.stock}</div>
+          <div class="tiny-label">Invested ₹${r.invested.toFixed(2)} | Avg Hold ${r.avgDays.toFixed(0)} days</div>
+        </div>
+        <div class="right-col">
+          <div class="metric-strong profit">${r.returnPct.toFixed(2)}%</div>
+          <div class="tiny-label">Net ₹${r.pnl.toFixed(2)}</div>
+        </div>
+      </div>
+    </div>
+  `).join("");
 }
 
 function renderBestWorst(data) {

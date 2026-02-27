@@ -61,6 +61,35 @@
     </div>
   </section>
 
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-shield-exclamation"></i> Mistake Tracker Score</h3>
+        <p class="panel-note">Tracks chase buys, weak drops, over-allocation buys, and panic sells.</p>
+      </div>
+      <button id="toggleMistakeBtn" class="btn btn-sm btn-outline-primary" type="button" onclick="toggleMistakeTracker()">
+        Hide
+      </button>
+    </div>
+    <div class="panel-body tight" id="mistakeTrackerPanel">
+      <div id="mistakeTrackerSummary"></div>
+      <div id="mistakeTrackerList" class="mt-2"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-signpost-split"></i> Sell Discipline Assistant</h3>
+        <p class="panel-note">Rule-based Hold / Trim / Exit suggestion for active holdings.</p>
+      </div>
+    </div>
+    <div class="panel-body tight">
+      <div class="tiny-label mb-2">Reference price uses latest transaction price (not live market feed).</div>
+      <div id="sellAssistantList"></div>
+    </div>
+  </section>
+
   <!-- =================================================
        FEATURE: Average Down Indicators
        ================================================= -->
@@ -72,6 +101,21 @@
     </div>
     <div class="panel-body tight">
       <div id="avgDownList"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-stars"></i> Advanced Analysis</h3>
+        <p class="panel-note">Stock-wise active cycle buy quality, layer checks, and next actions.</p>
+      </div>
+      <button id="toggleAdvancedBtn" class="btn btn-sm btn-outline-primary" type="button" onclick="toggleAdvancedInsights()">
+        Show
+      </button>
+    </div>
+    <div class="panel-body tight" id="advancedInsightsPanel" style="display:none">
+      <div id="advancedInsightsList"></div>
     </div>
   </section>
 

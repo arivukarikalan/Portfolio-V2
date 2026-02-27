@@ -137,6 +137,31 @@
   </div>
   </section>
 
+  <!-- ================= SELL DISCIPLINE RULES ================= -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-signpost-split"></i> Sell Discipline Rules</h3>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="row g-3">
+        <div class="col-4">
+          <label class="form-label">Target %</label>
+          <input id="sellTargetPct" type="number" step="0.01" class="form-control">
+        </div>
+        <div class="col-4">
+          <label class="form-label">Stop-loss %</label>
+          <input id="stopLossPct" type="number" step="0.01" class="form-control">
+        </div>
+        <div class="col-4">
+          <label class="form-label">Min Hold Days (Trim)</label>
+          <input id="minHoldDaysTrim" type="number" step="1" class="form-control">
+        </div>
+      </div>
+    </div>
+  </section>
+
   <button onclick="saveSettings()" class="btn btn-primary w-100 mb-3">
     Save All Settings
   </button>

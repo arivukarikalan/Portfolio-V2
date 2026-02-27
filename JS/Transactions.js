@@ -66,6 +66,170 @@ function refreshStockOptions() {
     };
 }
 
+function buildActiveSnapshotForChecklist(txns, settings) {
+  const map = {};
+
+  txns
+    .slice()
+    .sort((a, b) => parseDateLocal(a.date) - parseDateLocal(b.date))
+    .forEach(t => {
+      const stock = normalizeStockName(t.stock);
+      map[stock] ??= {
+        lots: [],
+        cycleFirstBuyPrice: null,
+        cycleFirstBuyDate: null,
+        cycleLastBuyPrice: null,
+        cycleLastBuyDate: null
+      };
+      const s = map[stock];
+
+      if (t.type === "BUY") {
+        if (s.lots.length === 0) {
+          s.cycleFirstBuyPrice = Number(t.price);
+          s.cycleFirstBuyDate = t.date;
+        }
+        s.cycleLastBuyPrice = Number(t.price);
+        s.cycleLastBuyDate = t.date;
+        const brkg = resolveTxnBrokerage(t, settings);
+        s.lots.push({
+          qty: Number(t.qty),
+          price: Number(t.price),
+          brokeragePerUnit: brkg / Number(t.qty),
+          date: t.date
+        });
+      } else {
+        let sellQty = Number(t.qty);
+        while (sellQty > 0 && s.lots.length) {
+          const lot = s.lots[0];
+          const used = Math.min(lot.qty, sellQty);
+          lot.qty -= used;
+          sellQty -= used;
+          if (lot.qty === 0) s.lots.shift();
+        }
+      }
+    });
+
+  const totalActiveInvested = Object.keys(map).reduce((sum, stock) => {
+    const invested = map[stock].lots.reduce((a, l) => a + l.qty * (l.price + l.brokeragePerUnit), 0);
+    return sum + invested;
+  }, 0);
+
+  return { map, totalActiveInvested };
+}
+
+function runPreBuyChecklist() {
+  const type = document.getElementById("txnType")?.value || "BUY";
+  const panel = document.getElementById("preBuyChecklist");
+  if (!panel) return;
+
+  if (type !== "BUY") {
+    panel.style.display = "block";
+    panel.innerHTML = `<div class="tiny-label">Checklist applies to BUY transactions only.</div>`;
+    return;
+  }
+
+  const stock = normalizeStockName(document.getElementById("stockInput")?.value || "");
+  const qty = Number(document.getElementById("qtyInput")?.value || 0);
+  const price = Number(document.getElementById("priceInput")?.value || 0);
+
+  if (!stock || qty <= 0 || price <= 0) {
+    panel.style.display = "block";
+    panel.innerHTML = `<div class="tiny-label">Enter stock, quantity, and price to run checklist.</div>`;
+    return;
+  }
+
+  getSettings(settings => {
+    db.transaction("transactions", "readonly")
+      .objectStore("transactions")
+      .getAll().onsuccess = e => {
+        const txns = e.target.result || [];
+        const { map, totalActiveInvested } = buildActiveSnapshotForChecklist(txns, settings);
+        const s = map[stock] || {
+          lots: [],
+          cycleFirstBuyPrice: price,
+          cycleFirstBuyDate: "",
+          cycleLastBuyPrice: price,
+          cycleLastBuyDate: ""
+        };
+
+        const existingInvested = s.lots.reduce((a, l) => a + l.qty * (l.price + l.brokeragePerUnit), 0);
+        const existingQty = s.lots.reduce((a, l) => a + l.qty, 0);
+        const buyBrokerage = calculateBrokerage("BUY", qty, price, settings);
+        const newBuyCost = qty * price + buyBrokerage;
+
+        const postStockInvested = existingInvested + newBuyCost;
+        const postTotalInvested = totalActiveInvested + newBuyCost;
+        const postAllocPct = postTotalInvested > 0 ? (postStockInvested / postTotalInvested) * 100 : 0;
+
+        const maxAllocPct = Number(settings.maxAllocationPct || 0);
+        const stockBudget = (Number(settings.portfolioSize || 0) * maxAllocPct) / 100;
+        const remainingBudget = stockBudget - postStockInvested;
+
+        const base = Number(s.cycleFirstBuyPrice || price);
+        const l1 = base * (1 - Number(settings.avgLevel1Pct || 0) / 100);
+        const l2 = base * (1 - Number(settings.avgLevel2Pct || 0) / 100);
+
+        let zoneText = "Above L1/L2 zones";
+        let zoneCls = "status-pill-mini bad";
+        if (price <= l2) {
+          zoneText = "In L2 zone";
+          zoneCls = "status-pill-mini ok";
+        } else if (price <= l1) {
+          zoneText = "In L1 zone";
+          zoneCls = "status-pill-mini warn";
+        }
+
+        const lastBuyPrice = Number(s.cycleLastBuyPrice || price);
+        const dropFromLastPct = lastBuyPrice > 0 ? ((lastBuyPrice - price) / lastBuyPrice) * 100 : 0;
+        const avgRuleHit = dropFromLastPct >= Number(settings.avgLevel1Pct || 0);
+        const avgRuleText = avgRuleHit
+          ? `Drop from last buy: ${dropFromLastPct.toFixed(2)}% (meets Avg L1 rule)`
+          : `Drop from last buy: ${dropFromLastPct.toFixed(2)}% (below Avg L1 rule)`;
+        const avgRuleCls = avgRuleHit ? "status-pill-mini ok" : "status-pill-mini bad";
+
+        const projectedAvg = (existingQty + qty) > 0
+          ? (postStockInvested / (existingQty + qty))
+          : price;
+
+        const allocCls = postAllocPct > maxAllocPct ? "status-pill-mini bad" : "status-pill-mini ok";
+        const allocText = postAllocPct > maxAllocPct
+          ? `Allocation ${postAllocPct.toFixed(2)}% (exceeds ${maxAllocPct.toFixed(2)}%)`
+          : `Allocation ${postAllocPct.toFixed(2)}% (within ${maxAllocPct.toFixed(2)}%)`;
+
+        const suggestion = postAllocPct > maxAllocPct
+          ? "Suggestion: reduce qty or wait for lower zone to avoid over-allocation."
+          : !avgRuleHit
+            ? "Suggestion: buy is early. Better to wait for stronger dip or lower zone."
+            : "Suggestion: setup looks disciplined. Continue only if conviction remains strong.";
+
+        panel.style.display = "block";
+        panel.innerHTML = `
+          <div class="split-row mb-1">
+            <div class="left-col tiny-label">Stock: ${stock} | Qty: ${qty} | Price: ₹${price.toFixed(2)}</div>
+          </div>
+          <div class="status-inline">
+            <span class="${zoneCls}">${zoneText}</span>
+            <span class="${avgRuleCls}">${avgRuleText}</span>
+            <span class="${allocCls}">${allocText}</span>
+          </div>
+          <div class="suggestion-row mt-2">
+            <span>Targets</span>
+            <span>L1: ₹${l1.toFixed(2)} | L2: ₹${l2.toFixed(2)}</span>
+          </div>
+          <div class="suggestion-row">
+            <span>Projected New Avg</span>
+            <span>₹${projectedAvg.toFixed(2)}</span>
+          </div>
+          <div class="suggestion-row">
+            <span>Stock Budget</span>
+            <span>₹${stockBudget.toFixed(2)} | Remaining: ₹${remainingBudget.toFixed(2)}</span>
+          </div>
+          <div class="suggestion-budget mt-2">${suggestion}</div>
+        `;
+      };
+  });
+}
+
 function txnCsvCell(value) {
   const v = value == null ? "" : String(value);
   if (/[",\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
@@ -195,13 +359,9 @@ function importTransactionsCSV() {
 
 function initTransactionBackupControls() {
   const exportBtn = document.getElementById("txnExportBtn");
-  const importBtn = document.getElementById("txnImportBtn");
-  const importFile = document.getElementById("txnImportFile");
-  if (!exportBtn || !importBtn || !importFile) return;
+  if (!exportBtn) return;
 
   exportBtn.addEventListener("click", exportTransactionsCSV);
-  importBtn.addEventListener("click", () => importFile.click());
-  importFile.addEventListener("change", importTransactionsCSV);
 }
 
 /* =========================================================
@@ -231,12 +391,23 @@ function initTransactionBackupControls() {
   
     const dateInput = document.getElementById("txnDate");
     const stockInputEl = document.getElementById("stockInput");
+    const checklistBtn = document.getElementById("runPreBuyChecklist");
+    const checklistPanel = document.getElementById("preBuyChecklist");
     dateInput.value = new Date().toISOString().split("T")[0];
     if (stockInputEl) {
       stockInputEl.addEventListener("blur", () => {
         stockInputEl.value = normalizeStockName(stockInputEl.value);
       });
     }
+    checklistBtn?.addEventListener("click", runPreBuyChecklist);
+    ["txnType", "stockInput", "qtyInput", "priceInput"].forEach(id => {
+      const el = document.getElementById(id);
+      el?.addEventListener("input", () => {
+        if (checklistPanel && checklistPanel.style.display === "block") {
+          runPreBuyChecklist();
+        }
+      });
+    });
     refreshStockOptions();
   
     form.onsubmit = e => {
@@ -296,6 +467,10 @@ function initTransactionBackupControls() {
           form.reset();
           editTxnId.value = "";
           dateInput.value = new Date().toISOString().split("T")[0];
+          if (checklistPanel) {
+            checklistPanel.style.display = "none";
+            checklistPanel.innerHTML = "";
+          }
   
           loadTransactions();
           calculateHoldings();
@@ -545,12 +720,15 @@ function calculatePnL() {
             fifo[t.stock].push({
               qty: t.qty,
               price: t.price,
-              brokeragePerUnit: buyBrkg / t.qty
+              brokeragePerUnit: buyBrkg / t.qty,
+              date: t.date
             });
           } else {
             let sellQty = t.qty;
             let buyCost = 0;
             let buyBrokerage = 0;
+            let consumedQty = 0;
+            let weightedHoldDaysSum = 0;
 
             while (sellQty > 0 && fifo[t.stock].length) {
               const lot = fifo[t.stock][0];
@@ -558,6 +736,9 @@ function calculatePnL() {
 
               buyCost += used * lot.price;
               buyBrokerage += used * lot.brokeragePerUnit;
+              consumedQty += used;
+              const holdDays = Math.max(0, Math.floor((parseDateLocal(t.date) - parseDateLocal(lot.date)) / 86400000));
+              weightedHoldDaysSum += used * holdDays;
 
               lot.qty -= used;
               sellQty -= used;
@@ -566,6 +747,11 @@ function calculatePnL() {
 
             const sellValue = t.qty * t.price;
             const sellBrokerage = resolveTxnBrokerage(t, settings);
+            const investedAmount = buyCost + buyBrokerage;
+            const holdDays = consumedQty > 0 ? weightedHoldDaysSum / consumedQty : 0;
+            const returnPct = investedAmount > 0
+              ? ((sellValue - buyCost - buyBrokerage - sellBrokerage) / investedAmount) * 100
+              : 0;
 
             result.push({
               stock: t.stock,
@@ -575,6 +761,9 @@ function calculatePnL() {
               buyCost,
               buyBrokerage,
               sellBrokerage,
+              investedAmount,
+              holdDays,
+              returnPct,
               net:
                 sellValue -
                 buyCost -
@@ -630,6 +819,13 @@ function renderGroupedPnL(data) {
     const totalNet = txns.reduce((a, t) => a + t.net, 0);
     const totalBuyBrkg = txns.reduce((a, t) => a + t.buyBrokerage, 0);
     const totalSellBrkg = txns.reduce((a, t) => a + t.sellBrokerage, 0);
+    const totalInvested = txns.reduce((a, t) => a + (t.investedAmount || (t.buyCost + t.buyBrokerage)), 0);
+    const weightedHoldDaysByInvested = txns.reduce(
+      (a, t) => a + (Number(t.holdDays || 0) * Number(t.investedAmount || (t.buyCost + t.buyBrokerage))),
+      0
+    );
+    const avgHoldDays = totalInvested > 0 ? weightedHoldDaysByInvested / totalInvested : 0;
+    const totalReturnPct = totalInvested > 0 ? (totalNet / totalInvested) * 100 : 0;
     const totalTrades = txns.length;
     const cls = totalNet >= 0 ? "profit" : "loss";
 
@@ -640,7 +836,7 @@ function renderGroupedPnL(data) {
         <div class="pnl-header" onclick="togglePnL('${id}')">
           <div class="left-col">
             <div class="txn-name">${stock}</div>
-            <div class="tiny-label">Realised Trades: ${totalTrades}</div>
+            <div class="tiny-label">Realised Trades: ${totalTrades} | Avg Hold: ${avgHoldDays.toFixed(0)} days | Return: ${totalReturnPct.toFixed(2)}%</div>
           </div>
           <div class="right-col">
             <div class="metric-strong ${cls}">₹${totalNet.toFixed(2)}</div>
@@ -655,6 +851,10 @@ function renderGroupedPnL(data) {
               <div class="split-row">
                 <div class="left-col tiny-label">${t.date} | Qty ${t.qty} @ ₹${t.sellPrice}</div>
                 <div class="right-col pnl-net ${t.net >= 0 ? "profit" : "loss"}">₹${t.net.toFixed(2)}</div>
+              </div>
+              <div class="split-row pnl-kv">
+                <div class="left-col">Invested | Hold | Return</div>
+                <div class="right-col">₹${(t.investedAmount || (t.buyCost + t.buyBrokerage)).toFixed(2)} | ${Number(t.holdDays || 0).toFixed(0)}d | ${Number(t.returnPct || 0).toFixed(2)}%</div>
               </div>
               <div class="split-row pnl-kv">
                 <div class="left-col">Buy Cost</div>

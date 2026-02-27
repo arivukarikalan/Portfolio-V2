@@ -223,7 +223,13 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   cursor: pointer;
+}
+
+.pnl-header i {
+  flex-shrink: 0;
+  margin-left: 2px;
 }
 
 .pnl-details {
@@ -487,6 +493,59 @@ body {
 body.dark .app-header,
 body.dark .bottom-nav {
   background: color-mix(in oklab, var(--card) 92%, #020617);
+}
+
+body.dark .card,
+body.dark .panel,
+body.dark .txn-card,
+body.dark .stat-card {
+  color: var(--text);
+}
+
+body.dark .card .fw-bold,
+body.dark .card .metric-strong,
+body.dark .panel .fw-bold,
+body.dark .panel .metric-strong {
+  color: #eaf2ff !important;
+}
+
+body.dark .table {
+  --bs-table-bg: transparent;
+  --bs-table-color: #dce8fb;
+  --bs-table-border-color: #2b3d5f;
+  --bs-table-striped-color: #dce8fb;
+}
+
+body.dark .table thead th {
+  color: #c7d8f2;
+}
+
+body.dark .table tbody td {
+  color: #dce8fb;
+}
+
+body.dark .form-control,
+body.dark .form-select {
+  color: #eaf2ff;
+  background: color-mix(in oklab, var(--card) 88%, #0a1324);
+  border-color: #30456a;
+}
+
+body.dark .form-control::placeholder {
+  color: #95aace;
+  opacity: 1;
+}
+
+body.dark .text-primary {
+  color: #76b6ff !important;
+}
+
+body.dark .text-success {
+  color: #4ade80 !important;
+}
+
+body.dark .text-danger {
+  color: #f87171 !important;
 }
 
 body.dark .text-muted,

@@ -93,6 +93,13 @@
         <input id="txnDate" type="date" class="form-control">
       </div>
 
+      <div class="d-grid gap-2">
+        <button id="runPreBuyChecklist" type="button" class="btn btn-outline-primary">
+          <i class="bi bi-check2-square"></i> Run Pre-Buy Checklist
+        </button>
+        <div id="preBuyChecklist" class="section-shell" style="display:none"></div>
+      </div>
+
       <button class="btn btn-primary w-100">
         Save Transaction
       </button>
@@ -144,10 +151,6 @@
       <button id="txnExportBtn" type="button" class="btn btn-primary flex-fill">
         <i class="bi bi-download"></i> Export Txn CSV
       </button>
-      <button id="txnImportBtn" type="button" class="btn btn-outline-secondary flex-fill">
-        <i class="bi bi-upload"></i> Import Txn CSV
-      </button>
-      <input id="txnImportFile" type="file" accept=".csv,text/csv" hidden>
     </div>
   </div>
 </section>

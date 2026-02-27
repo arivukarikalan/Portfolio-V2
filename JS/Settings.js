@@ -1,4 +1,4 @@
-/* =========================================================
+﻿/* =========================================================
    FILE: settings.js
    PURPOSE:
    - Centralised application settings
@@ -173,8 +173,12 @@ function seedSettings() {
           avgLevel1Pct: 7,
           avgLevel2Pct: 12,
 
-          fdRatePct: 6.5,        // ✅ NEW
-          inflationRatePct: 6.0  // ✅ NEW
+          fdRatePct: 6.5,        // âœ… NEW
+          inflationRatePct: 6.0, // âœ… NEW
+
+          sellTargetPct: 15,
+          stopLossPct: 8,
+          minHoldDaysTrim: 20
         });
       }
     };
@@ -202,8 +206,11 @@ function loadSettings() {
     document.getElementById("avgLevel1Pct").value = s.avgLevel1Pct;
     document.getElementById("avgLevel2Pct").value = s.avgLevel2Pct;
 
-    document.getElementById("fdRatePct").value = s.fdRatePct;           // ✅ NEW
-    document.getElementById("inflationRatePct").value = s.inflationRatePct; // ✅ NEW
+    document.getElementById("fdRatePct").value = s.fdRatePct;           // âœ… NEW
+    document.getElementById("inflationRatePct").value = s.inflationRatePct; // âœ… NEW
+    document.getElementById("sellTargetPct").value = s.sellTargetPct ?? 15;
+    document.getElementById("stopLossPct").value = s.stopLossPct ?? 8;
+    document.getElementById("minHoldDaysTrim").value = s.minHoldDaysTrim ?? 20;
   };
 }
 
@@ -221,8 +228,12 @@ function saveSettings() {
     avgLevel1Pct: Number(avgLevel1Pct.value),
     avgLevel2Pct: Number(avgLevel2Pct.value),
 
-    fdRatePct: Number(fdRatePct.value),               // ✅ NEW
-    inflationRatePct: Number(inflationRatePct.value)  // ✅ NEW
+    fdRatePct: Number(fdRatePct.value),               // âœ… NEW
+    inflationRatePct: Number(inflationRatePct.value), // âœ… NEW
+
+    sellTargetPct: Number(sellTargetPct.value),
+    stopLossPct: Number(stopLossPct.value),
+    minHoldDaysTrim: Number(minHoldDaysTrim.value)
   };
 
   const tx = db.transaction("settings", "readwrite");
@@ -261,7 +272,7 @@ function exportCSV() {
 
     /* SETTINGS */
     csv += "#SETTINGS\n";
-    csv += "id,brokerageBuyPct,brokerageSellPct,dpCharge,portfolioSize,maxAllocationPct,avgLevel1Pct,avgLevel2Pct,fdRatePct,inflationRatePct\n";
+    csv += "id,brokerageBuyPct,brokerageSellPct,dpCharge,portfolioSize,maxAllocationPct,avgLevel1Pct,avgLevel2Pct,fdRatePct,inflationRatePct,sellTargetPct,stopLossPct,minHoldDaysTrim\n";
 
     const s = settings[0] || {
       id: 1,
@@ -273,9 +284,12 @@ function exportCSV() {
       avgLevel1Pct: 7,
       avgLevel2Pct: 12,
       fdRatePct: 6.5,
-      inflationRatePct: 6
+      inflationRatePct: 6,
+      sellTargetPct: 15,
+      stopLossPct: 8,
+      minHoldDaysTrim: 20
     };
-    csv += `${csvJoin([s.id, s.brokerageBuyPct, s.brokerageSellPct, s.dpCharge, s.portfolioSize, s.maxAllocationPct, s.avgLevel1Pct, s.avgLevel2Pct, s.fdRatePct, s.inflationRatePct])}\n\n`;
+    csv += `${csvJoin([s.id, s.brokerageBuyPct, s.brokerageSellPct, s.dpCharge, s.portfolioSize, s.maxAllocationPct, s.avgLevel1Pct, s.avgLevel2Pct, s.fdRatePct, s.inflationRatePct, s.sellTargetPct ?? 15, s.stopLossPct ?? 8, s.minHoldDaysTrim ?? 20])}\n\n`;
 
     /* TRANSACTIONS */
     csv += "#TRANSACTIONS\n";
@@ -426,7 +440,10 @@ function processCSV(text) {
         avgLevel1Pct: Number(cols[6]),
         avgLevel2Pct: Number(cols[7]),
         fdRatePct: Number(cols[8]),
-        inflationRatePct: Number(cols[9])
+        inflationRatePct: Number(cols[9]),
+        sellTargetPct: Number(cols[10] || 15),
+        stopLossPct: Number(cols[11] || 8),
+        minHoldDaysTrim: Number(cols[12] || 20)
       });
     }
 
@@ -494,3 +511,4 @@ function restoreDatabase(setting, transactions, debtBorrows = [], debtRepays = [
     };
   };
 }
+
