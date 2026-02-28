@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Loss Report</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="CSS/ui.css" rel="stylesheet">
+  <link href="CSS/ui-theme.css" rel="stylesheet">
+  <link href="CSS/ui-improvements.css" rel="stylesheet">
+  <link rel="icon" type="image/png" href="Assets/Icons/Favicon.png">
+  <style>
+    .loss-value { color: #c82333; font-weight:700; }
+    .row-clickable { cursor: pointer; }
+    .row-clickable:hover { background:#f8f9fa; }
+    .txn-table { margin-top:10px; }
+  </style>
+</head>
+<body class="page-lossreport">
+
+<div class="app-header">
+  <div class="app-title">Loss Report</div>
+  <div class="d-flex gap-2">
+    <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
+      <i class="bi bi-moon-stars"></i>
+    </button>
+    <a href="index.html" class="btn btn-sm btn-light" title="Home"><i class="bi bi-house"></i></a>
+    <a href="Transactions.html" class="btn btn-sm btn-light" title="Transactions"><i class="bi bi-arrow-left-right"></i></a>
+  </div>
+</div>
+
+<div class="container page-shell">
+  <section class="hero">
+    <h2 class="hero-title">Total Losses & Drilldown</h2>
+    <p class="hero-sub">Aggregated historical losses. Tap a stock to see all loss-making sells and underlying transaction details.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h3 class="panel-title"><i class="bi bi-receipt-cutoff"></i> Aggregate Losses</h3>
+    </div>
+    <div class="panel-body tight">
+      <div id="lossSummary" class="tiny-label mb-2"></div>
+      <div class="mb-2">
+        <input id="lossFilter" class="form-control form-control-sm" placeholder="Filter by stock">
+      </div>
+    </div>
+  </section>
+
+  <section class="list-shell">
+    <div class="section-title">Stocks with Net Losses</div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover" id="lossTable">
+        <thead>
+          <tr>
+            <th>Stock</th>
+            <th class="text-end">Total Loss (₹)</th>
+            <th class="text-end">Loss Sells</th>
+            <th class="text-end">Avg Hold (d)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="lossDetails" class="mt-3"></div>
+  </section>
+</div>
+
+<nav class="bottom-nav">
+  <a href="index.html"><i class="bi bi-grid"></i>Home</a>
+  <a href="Transactions.html"><i class="bi bi-arrow-left-right"></i>Txn</a>
+  <a href="Insights.html"><i class="bi bi-lightbulb"></i>Insights</a>
+</nav>
+
+<script src="JS/Db.js"></script>
+<script src="JS/Settings.js"></script>
+<script src="JS/LossReport.js"></script>
+<script>
+  function toggleTheme() {
+    document.body.classList.toggle("dark");
+    localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
+  }
+  if (localStorage.getItem("theme") === "dark") document.body.classList.add("dark");
+
+  openDB().then(seedSettings).then(() => {
+    loadLossReport();
+  });
+</script>
+</body>
+</html>

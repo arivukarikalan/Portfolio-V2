@@ -568,13 +568,13 @@ function loadInsights() {
           const activeBuyCount = (s.cycleBuys || []).length;
 
           let status = "Balanced";
-          let statusClass = "text-success";
-          if (allocationPct > settings.maxAllocationPct) {
-            status = "Warning";
-            statusClass = "text-danger";
+          let statusClass = "status-pill-mini ok";
+          if (allocationPct > Number(settings.maxAllocationPct || 0)) {
+            status = "Over Alloc";
+            statusClass = "status-pill-mini bad";
           } else if (allocationPct > 15) {
             status = "Moderate";
-            statusClass = "text-warning";
+            statusClass = "status-pill-mini warn";
           }
 
           const daysHeld = Math.floor(
@@ -662,9 +662,9 @@ function loadInsights() {
 
           let avgStatus = "";
           if (level1Done && level2Done) {
-            avgStatus = `<span class="text-danger">Averaging Stage Completed</span>`;
+            avgStatus = `<span class="text-loss">Averaging Stage Completed</span>`;
           } else if (level1Done) {
-            avgStatus = `<span class="text-warning">Level-1 Averaging Completed</span>`;
+            avgStatus = `<span class="text-warn">Level-1 Averaging Completed</span>`;
           }
 
           avgDownList.innerHTML += `
@@ -1031,4 +1031,106 @@ function populateExitStockOptions(capitalRows) {
   if (!dl) return;
   dl.innerHTML = (capitalRows || []).map(r => `<option value="${r.stock}"></option>`).join("");
 }
+
+/* Updated updateExitHoldDays: prefer first buy of current cycle (cycleFirstBuyDate / earliest cycleBuys / earliest lot),
+   then fall back to other sources (APIs, window.transactions, getAllTransactions, IndexedDB) */
+function updateExitHoldDays(stock) {
+  const el = document.getElementById('exitHoldDays');
+  if (!el) return;
+  if (!stock) { el.textContent = '-'; return; }
+
+  try {
+    // 1) Prefer in-memory insights state if available (fast and reliable after loadInsights)
+    const li = window.lastInsightsData && window.lastInsightsData.state;
+    if (li) {
+      // find matching stock key case-insensitively
+      const key = Object.keys(li).find(k => String(k).toLowerCase() === String(stock).toLowerCase());
+      if (key) {
+        const s = li[key];
+        // prefer the FIRST buy of current cycle (cycleFirstBuyDate), then earliest cycleBuys entry, then earliest lot date
+        let firstBuyDate = s.cycleFirstBuyDate || null;
+        if (!firstBuyDate && Array.isArray(s.cycleBuys) && s.cycleBuys.length) {
+          firstBuyDate = s.cycleBuys[0].date;
+        }
+        if (!firstBuyDate && Array.isArray(s.lots) && s.lots.length) {
+          // use earliest lot date if present
+          firstBuyDate = s.lots[0].date;
+        }
+        if (firstBuyDate) {
+          const days = Math.floor((Date.now() - new Date(firstBuyDate)) / (1000 * 60 * 60 * 24));
+          el.textContent = (days >= 0 ? days : 0) + ' days';
+          return;
+        }
+      }
+    }
+
+    // 2) Try existing helpers / globals (non-blocking)
+    let txns = [];
+    if (typeof getTransactionsByStock === 'function') {
+      txns = getTransactionsByStock(stock) || [];
+    } else if (Array.isArray(window.transactions)) {
+      txns = window.transactions.filter(t => String(t.stock).toLowerCase() === String(stock).toLowerCase());
+    } else if (typeof getAllTransactions === 'function') {
+      txns = (getAllTransactions() || []).filter(t => String(t.stock).toLowerCase() === String(stock).toLowerCase());
+    }
+
+    if (txns && txns.length) {
+      const buys = txns.filter(t => {
+        const ty = (t.type || t.txnType || '').toString().toUpperCase();
+        return ty === 'BUY';
+      });
+      if (buys.length) {
+        // If we don't have cycle info, fall back to using the earliest BUY date from txns (approximates first buy)
+        const earliest = buys.reduce((a, b) => new Date(a.date) < new Date(b.date) ? a : b);
+        const days = Math.floor((Date.now() - new Date(earliest.date)) / (1000 * 60 * 60 * 24));
+        el.textContent = (days >= 0 ? days : 0) + ' days';
+        return;
+      }
+    }
+
+    // 3) Last resort: query IndexedDB transactions and compute
+    if (typeof db !== 'undefined' && db) {
+      const req = db.transaction("transactions", "readonly").objectStore("transactions").getAll();
+      req.onsuccess = (e) => {
+        const all = (e.target.result || []).filter(t => String(t.stock).toLowerCase() === String(stock).toLowerCase());
+        const buys = all.filter(t => (t.type || t.txnType || '').toString().toUpperCase() === 'BUY');
+        if (!buys.length) {
+          el.textContent = 'No BUYs';
+          return;
+        }
+        // pick earliest buy date as approximation for first buy of active cycle
+        const earliest = buys.reduce((a, b) => new Date(a.date) < new Date(b.date) ? a : b);
+        const days = Math.floor((Date.now() - new Date(earliest.date)) / (1000 * 60 * 60 * 24));
+        el.textContent = (days >= 0 ? days : 0) + ' days';
+      };
+      req.onerror = () => { el.textContent = '-'; };
+      return;
+    }
+
+    // 4) nothing found
+    el.textContent = 'No BUYs';
+  } catch (e) {
+    el.textContent = '-';
+  }
+}
+
+// Wire up the stock input and simulate button once DOM is ready.
+// This keeps wiring inside the JS module rather than inline HTML.
+document.addEventListener('DOMContentLoaded', () => {
+  const stockInput = document.getElementById('exitStockInput');
+  const simBtn = document.getElementById('exitSimulateBtn');
+
+  if (stockInput) {
+    stockInput.addEventListener('input', () => updateExitHoldDays(stockInput.value));
+    // initialize display if input has a prefilled value
+    if (stockInput.value) updateExitHoldDays(stockInput.value);
+  }
+
+  if (simBtn) {
+    simBtn.addEventListener('click', () => {
+      const s = document.getElementById('exitStockInput');
+      updateExitHoldDays(s ? s.value : '');
+    });
+  }
+});
 

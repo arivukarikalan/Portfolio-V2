@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Montserrat:wght@600;700;800&display=swap");
 
 /* ================= THEME ================= */
 :root {
@@ -36,14 +36,18 @@ body.dark {
   box-sizing: border-box;
 }
 
+html, body {
+  font-family: "Roboto", Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  line-height: 1.45;
+  font-size: 15px; /* base */
+}
+
 body {
   margin: 0;
-  font-family: "Manrope", "Segoe UI", sans-serif;
-  font-size: 15px;
-  line-height: 1.4;
-  -webkit-font-smoothing: antialiased;
-  color: var(--text);
-  background: var(--bg);
   padding-bottom: 92px;
 }
 
@@ -55,36 +59,37 @@ body {
 
 /* ================= HEADER ================= */
 .app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.02), transparent);
+  border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
-  z-index: 50;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px;
-  background: color-mix(in oklab, var(--card) 95%, transparent);
-  border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+  z-index: 60;
+  backdrop-filter: blur(6px);
 }
 
 .app-title {
-  font-size: 1rem;
-  font-weight: 800;
-  letter-spacing: 0.01em;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text);
+  font-family: "Montserrat", "Roboto", Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }
 
-.app-header .btn-light {
-  border: 1px solid var(--border);
-  background: var(--card);
-  color: var(--text);
-  border-radius: 12px;
+.app-header .btn {
   width: 36px;
   height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  padding: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:8px;
+  background: transparent;
+  border: 1px solid rgba(0,0,0,0.03);
 }
+body.dark .app-header .btn { border-color: rgba(255,255,255,0.04); }
 
 /* ================= CARDS ================= */
 .card {
@@ -170,14 +175,14 @@ body {
   letter-spacing: 0.01em;
   margin: 14px 0 8px;
   color: color-mix(in oklab, var(--text) 92%, var(--muted));
+  font-family: "Montserrat", "Roboto", Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }
 
 .txn-card {
-  background: color-mix(in oklab, var(--card) 94%, var(--card-soft));
-  border-radius: 15px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
   border: 1px solid var(--border);
-  margin-bottom: 8px;
-  padding: 11px;
 }
 
 .txn-top {
@@ -190,6 +195,7 @@ body {
 .txn-name {
   font-weight: 800;
   font-size: 15px;
+  font-family: "Montserrat", "Roboto", Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }
 
 .txn-sub {
@@ -234,11 +240,11 @@ body {
 }
 
 .data-highlight.positive {
-  color: var(--positive);
+  color: var(--profit);
 }
 
 .data-highlight.negative {
-  color: var(--negative);
+  color: var(--loss);
 }
 
 .pnl-header {
@@ -298,46 +304,15 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow-x: auto;
-  white-space: nowrap;
-  padding: 7px 8px calc(8px + env(safe-area-inset-bottom, 0px));
-  background: color-mix(in oklab, var(--card) 96%, transparent);
+  background: var(--card);
   border-top: 1px solid var(--border);
-  backdrop-filter: blur(8px);
+  display:flex;
+  justify-content:space-around;
+  padding: 6px 0;
+  z-index: 65;
 }
-
-.bottom-nav::-webkit-scrollbar {
-  display: none;
-}
-
-.bottom-nav a {
-  flex: 1 0 62px;
-  min-width: 62px;
-  text-decoration: none;
-  color: var(--muted);
-  text-align: center;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 4px 3px;
-  border-radius: 10px;
-}
-
-.bottom-nav i {
-  display: block;
-  font-size: 16px;
-  line-height: 1.1;
-  margin-bottom: 2px;
-}
-
-.bottom-nav a.active {
-  color: var(--blue);
-  background: color-mix(in oklab, var(--blue) 14%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--blue) 28%, transparent);
-}
+.bottom-nav a { display:flex; flex-direction:column; align-items:center; font-size:12px; color:var(--muted); text-decoration:none; padding:6px 8px; }
+.bottom-nav a.active { color: var(--accent); font-weight:700; }
 
 /* ================= TOAST ================= */
 .toast-host {
@@ -612,3 +587,165 @@ body.dark .btn-primary {
     padding-right: 18px;
   }
 }
+
+/* --- Base typography & layout tweaks --- */
+html, body {
+  font-family: "Roboto", Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  line-height: 1.45;
+  font-size: 15px; /* base */
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.02), transparent);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  backdrop-filter: blur(6px);
+}
+
+/* header title */
+.app-title {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text);
+  font-family: "Montserrat", "Roboto", Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+/* Icon buttons in header */
+.app-header .btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:8px;
+  background: transparent;
+  border: 1px solid rgba(0,0,0,0.03);
+}
+body.dark .app-header .btn { border-color: rgba(255,255,255,0.04); }
+
+/* Page shell spacing */
+.container.page-shell {
+  padding: 12px;
+}
+
+/* Panels and cards */
+.panel {
+  margin-bottom: 12px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.panel-head { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.panel-body { padding: 12px; }
+
+/* txn-card */
+.txn-card {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+  border: 1px solid var(--border);
+}
+
+/* split rows and small utilities */
+.split-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.left-col { flex:1; min-width:0; }
+.right-col { flex:0 0 auto; text-align:right; }
+
+/* metric strong */
+.metric-strong {
+  font-weight:800;
+  font-size:1.05rem;
+  font-family: "Montserrat", "Roboto", Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+.metric-strong.profit { color: var(--profit); }
+.metric-strong.loss { color: var(--loss); }
+
+/* tiny labels and subtle text */
+.tiny-label { font-size: 12px; color: var(--muted); }
+
+/* Stat grid */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+.stat-label { font-size: 12px; color: var(--muted); }
+.stat-value { font-weight:700; font-size:1.1rem; color:var(--text); }
+.data-negative { color: var(--loss); font-weight:800; }
+
+/* Table compactness for mobile */
+.table-mini, .table.small, table.mini-table { font-size: 13px; }
+.table td, .table th { vertical-align: middle; }
+
+/* Bottom nav */
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  display:flex;
+  justify-content:space-around;
+  padding: 6px 0;
+  z-index: 65;
+}
+.bottom-nav a { display:flex; flex-direction:column; align-items:center; font-size:12px; color:var(--muted); text-decoration:none; padding:6px 8px; }
+.bottom-nav a.active { color: var(--accent); font-weight:700; }
+
+/* Responsive: mobile adjustments */
+@media (max-width: 600px) {
+  html, body { font-size: 14px; }
+  .stat-grid { grid-template-columns: 1fr; }
+  .app-header { padding: 10px; }
+  .panel-head, .panel-body { padding: 10px; }
+  .txn-card { padding: 10px; }
+  .metric-strong { font-size: 1rem; }
+  .table thead { display: none; }
+  .table tbody tr { display: block; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
+  .table tbody td { display: flex; justify-content: space-between; padding: 4px 0; }
+}
+
+/* Accessibility: larger focus targets */
+.btn:focus, a:focus { outline: 2px dashed rgba(13,110,253,0.25); outline-offset: 2px; }
+
+/* Small helpers */
+.text-muted { color: var(--muted); }
+.center { text-align:center; }
+
+/* --- Fix typo & semantic highlight colors --- */
+.data-negative { color: var(--loss); font-weight:800; }
+
+/* Ensure data-highlight variants use profit/loss semantic tokens */
+.data-highlight.positive {
+  color: var(--profit);
+}
+.data-highlight.negative {
+  color: var(--loss);
+}
+
+/* Also map Bootstrap-like classes to theme tokens (lightweight override here) */
+.text-success { color: var(--profit) !important; }
+.text-danger  { color: var(--loss) !important; }
+.text-warning { color: var(--warn) !important; }
+.text-primary { color: var(--accent) !important; }

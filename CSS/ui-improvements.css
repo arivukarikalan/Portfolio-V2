@@ -1,0 +1,117 @@
+/* Improve alignment, spacing, typography, mobile friendliness and visual emphasis.
+   Add after ui.css and ui-theme.css:
+   <link href="CSS/ui-improvements.css" rel="stylesheet">
+*/
+
+/* Base responsive type scale */
+:root{
+  --base-font: 15px;
+}
+html { font-size: var(--base-font); }
+@media (max-width:420px){ :root{ --base-font:14px } }
+@media (min-width:1024px){ :root{ --base-font:16px } }
+
+/* Readability & content width */
+.container.page-shell { max-width: 920px; margin: 0 auto; padding-left: 14px; padding-right: 14px; }
+
+/* Header alignment improvements */
+.app-header { align-items:center; gap:12px; padding:10px 14px; }
+.app-header .app-title { font-size:1.05rem; letter-spacing:0.2px; }
+.app-header .d-flex { align-items:center; }
+
+/* Make header buttons larger tappable on mobile */
+.app-header .btn { width:40px; height:40px; border-radius:10px; }
+@media (max-width:420px){ .app-header .btn { width:44px; height:44px; } }
+
+/* Stat cards / KPIs */
+.stat-card { display:flex; flex-direction:column; justify-content:center; min-height:86px; padding:12px; }
+.stat-value { font-size:1.2rem; line-height:1; }
+.stat-label { font-size:12px; text-transform:uppercase; letter-spacing:0.04em; }
+
+/* KPI utilities */
+.kpi { display:flex; align-items:baseline; gap:8px; }
+.kpi .kpi-label { font-size:12px; color:var(--muted); font-weight:700; }
+.kpi .kpi-value { font-size:20px; font-weight:900; }
+.kpi .kpi-value.positive { color:var(--profit); }
+.kpi .kpi-value.negative { color:var(--loss); }
+
+/* Improve card & list spacing */
+.panel { padding:0; overflow:visible; }
+.panel-head { padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.panel-body { padding:12px 14px 16px; }
+
+/* TXN / list cards - improved vertical rhythm */
+.txn-card { padding:12px 14px; margin-bottom:10px; border-radius:12px; }
+.txn-card .txn-name { font-size:15px; }
+.txn-card .tiny-label { font-size:12px; }
+
+/* Tables: increase touch targets + responsive stacking on very small screens */
+.table.table-sm th, .table.table-sm td { padding:10px 8px; font-size:13px; }
+.table-responsive { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+@media (max-width:520px){
+  .table thead { display:none; }
+  .table tbody tr { display:block; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; padding:8px; }
+  .table tbody td { display:flex; justify-content:space-between; padding:6px 4px; }
+  .table tbody td::before { content: attr(data-label); color:var(--muted); font-weight:700; margin-right:8px; }
+}
+
+/* Buttons & form controls: larger tap areas */
+.form-control, .form-select { min-height:44px; padding:10px 12px; border-radius:12px; }
+.btn, .btn-primary, .btn-outline-primary { min-height:44px; border-radius:12px; padding-left:12px; padding-right:12px; }
+
+/* Bottom nav: larger icons and spacing */
+.bottom-nav { padding:8px 0; gap:6px; }
+.bottom-nav a { padding:8px 6px; }
+.bottom-nav a i { font-size:18px; }
+
+/* Emphasis colors (consistent) */
+.metric-strong.profit, .kpi .kpi-value.positive { color: var(--profit) !important; }
+.metric-strong.loss, .kpi .kpi-value.negative { color: var(--loss) !important; }
+
+/* Badges & pills: stronger contrast */
+.status-pill-mini { box-shadow:none; padding:4px 8px; font-weight:800; }
+.status-pill-mini.ok { background: rgba(34,197,94,0.12); color: var(--profit); }
+.status-pill-mini.bad { background: rgba(220,64,58,0.08); color: var(--loss); }
+
+/* Focus & accessibility: visible outlines for keyboard users */
+:focus { outline: 3px solid rgba(13,110,253,0.14); outline-offset:2px; }
+
+/* Small utility classes */
+.u-bold { font-weight:800; }
+.u-muted { color:var(--muted); }
+.u-small { font-size:12px; }
+.u-center { text-align:center; }
+
+/* Ensure JS-rendered values pick up theme semantics */
+.u-profit { color: var(--profit) !important; font-weight:800; }
+.u-loss { color: var(--loss) !important; font-weight:800; }
+.u-warn { color: var(--warn) !important; font-weight:700; }
+
+/* stronger metric emphasis for cards */
+.metric-strong { letter-spacing: -0.01em; }
+.metric-strong.profit { color: var(--profit) !important; }
+.metric-strong.loss { color: var(--loss) !important; }
+
+/* small compatibility: ensure `.data-negative` class (used in templates) is styled */
+.data-negative { color: var(--loss) !important; font-weight:800; }
+
+/* Improve modal / details visibility on small screens */
+.txn-table table { width:100%; border-collapse:collapse; font-size:13px; }
+.txn-table th, .txn-table td { padding:8px; border-bottom:1px solid var(--border); }
+
+/* Slight animation to make toggles feel responsive */
+.icon-toggle-btn { transition: transform 120ms ease; }
+.icon-toggle-btn:active { transform: scale(0.98); }
+
+/* Dark-mode subtle fixes */
+body.dark .txn-card { background: color-mix(in oklab, var(--card) 92%, #071226); border-color: rgba(255,255,255,0.04); }
+body.dark .stat-card { background: color-mix(in oklab, var(--card) 92%, #071226); }
+
+/* Mobile-first improvements: reduce dense text & increase spacing */
+@media (max-width:420px){
+  .txn-card { padding:12px; }
+  .panel-head { padding:10px; }
+  .hero-title { font-size:1.01rem; }
+}
+
+/* Keep this file additive and minimal — override or tune specific selectors if required. */
