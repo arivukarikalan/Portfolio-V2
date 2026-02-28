@@ -272,83 +272,6 @@ function renderHoldingEdge(listEl, rows) {
   `;
 }
 
-function buildActionPriorityRows(capitalRows, qualityByStock, settings) {
-  const maxAlloc = Number(settings.maxAllocationPct || 25);
-  return capitalRows
-    .map(r => {
-      const q = qualityByStock[r.stock] || {
-        chaseBuys: 0,
-        weakDropBuys: 0,
-        overAllocBuys: 0,
-        panicSells: 0
-      };
-
-      const allocRisk = r.capitalSharePct > maxAlloc ? 35 : (r.capitalSharePct > maxAlloc * 0.85 ? 20 : 0);
-      const returnRisk = r.returnPct < -5 ? 35 : (r.returnPct < 0 ? 20 : 0);
-      const staleRisk = (r.daysHeld > 90 && r.returnPct < 5) ? 20 : 0;
-      const disciplineRisk = Math.min(
-        25,
-        (q.chaseBuys * 5) + (q.weakDropBuys * 8) + (q.overAllocBuys * 10) + (q.panicSells * 8)
-      );
-      const priority = Math.min(100, allocRisk + returnRisk + staleRisk + disciplineRisk);
-
-      let label = "Low";
-      let cls = "ok";
-      if (priority >= 60) {
-        label = "High";
-        cls = "bad";
-      } else if (priority >= 35) {
-        label = "Medium";
-        cls = "warn";
-      }
-
-      let action = "Hold and continue disciplined adds only at planned zones.";
-      if (r.capitalSharePct > maxAlloc && r.returnPct > 0) {
-        action = "Over allocation with profit: trim in parts to bring weight near target.";
-      } else if (r.returnPct < 0 && r.daysHeld > 30) {
-        action = "Negative return with aging hold: review thesis before adding more capital.";
-      } else if (disciplineRisk >= 16) {
-        action = "High execution mistakes: pause fresh buys and follow checklist strictly.";
-      }
-
-      return {
-        ...r,
-        priority,
-        label,
-        cls,
-        action,
-        mistakes: q
-      };
-    })
-    .sort((a, b) => b.priority - a.priority);
-}
-
-function renderActionPriority(listEl, rows) {
-  if (!listEl) return;
-  if (!rows.length) {
-    listEl.innerHTML = `<div class="txn-card text-center text-muted">No active holdings for action queue</div>`;
-    return;
-  }
-
-  const topRows = rows.slice(0, 5);
-  listEl.innerHTML = topRows.map((r, idx) => `
-    <div class="txn-card">
-      <div class="split-row">
-        <div class="left-col">
-          <div class="txn-name">#${idx + 1} ${r.stock}</div>
-          <div class="tiny-label">Alloc ${r.capitalSharePct.toFixed(2)}% | Return ${r.returnPct.toFixed(2)}% | Hold ${r.daysHeld}d</div>
-          <div class="tiny-label">Chase ${r.mistakes.chaseBuys} | Weak ${r.mistakes.weakDropBuys} | OverAlloc ${r.mistakes.overAllocBuys} | Panic ${r.mistakes.panicSells}</div>
-        </div>
-        <div class="right-col">
-          <div class="metric-strong">${r.priority.toFixed(0)} / 100</div>
-          <span class="status-pill-mini ${r.cls}">${r.label} Priority</span>
-        </div>
-      </div>
-      <div class="suggestion-budget mt-1"><strong>Suggested Action:</strong> ${r.action}</div>
-    </div>
-  `).join("");
-}
-
 function renderReasonOutcome(listEl, rows) {
   if (!listEl) return;
   if (!rows.length) {
@@ -398,10 +321,6 @@ function loadInsights() {
   const reasonOutcomeList = document.getElementById("reasonOutcomeList");
   const capitalEfficiencyList = document.getElementById("capitalEfficiencyList");
   const holdingEdgeList = document.getElementById("holdingEdgeList");
-  const actionPriorityList = document.getElementById("actionPriorityList");
-  const mistakeSummaryEl = document.getElementById("mistakeTrackerSummary");
-  const mistakeListEl = document.getElementById("mistakeTrackerList");
-  const sellAssistantList = document.getElementById("sellAssistantList");
   if (!allocationList || !avgDownList) return;
 
   getSettings(settings => {
@@ -625,8 +544,6 @@ function loadInsights() {
         if (reasonOutcomeList) reasonOutcomeList.innerHTML = "";
         if (capitalEfficiencyList) capitalEfficiencyList.innerHTML = "";
         if (holdingEdgeList) holdingEdgeList.innerHTML = "";
-        if (actionPriorityList) actionPriorityList.innerHTML = "";
-        if (sellAssistantList) sellAssistantList.innerHTML = "";
 
         const totalActiveInvested = Object.values(state)
           .reduce((sum, s) => sum + s.lots.reduce(
@@ -715,60 +632,6 @@ function loadInsights() {
               </div>
             </div>
           `;
-
-          if (sellAssistantList) {
-            const avgCost = qty > 0 ? invested / qty : 0;
-            const referencePriceForSell = referencePrice > 0 ? referencePrice : avgCost;
-            const currentValueForSell = qty * referencePriceForSell;
-            const unrealizedForSell = currentValueForSell - invested;
-            const unrealizedPct = invested > 0 ? (unrealizedForSell / invested) * 100 : 0;
-
-            const targetPct = Number(settings.sellTargetPct ?? 15);
-            const stopLossPct = Math.abs(Number(settings.stopLossPct ?? 8));
-            const minHoldDaysTrim = Number(settings.minHoldDaysTrim ?? 20);
-
-            let action = "Hold";
-            let actionCls = "status-pill-mini ok";
-            let reason = "No sell trigger met yet.";
-
-            if (unrealizedPct <= -stopLossPct) {
-              action = "Exit";
-              actionCls = "status-pill-mini bad";
-              reason = `Loss crossed stop-loss (${stopLossPct.toFixed(2)}%).`;
-            } else if (unrealizedPct >= targetPct && daysHeld >= minHoldDaysTrim) {
-              action = "Trim";
-              actionCls = "status-pill-mini warn";
-              reason = `Target met (${targetPct.toFixed(2)}%) with hold-days discipline (${minHoldDaysTrim}+).`;
-            } else if (allocationPct > Number(settings.maxAllocationPct || 0) && unrealizedPct > 0) {
-              action = "Trim";
-              actionCls = "status-pill-mini warn";
-              reason = "Over allocation with positive return; partial trim can reduce concentration.";
-            } else if (unrealizedPct > 0 && daysHeld < minHoldDaysTrim) {
-              action = "Hold";
-              actionCls = "status-pill-mini ok";
-              reason = `In profit but hold period still below ${minHoldDaysTrim} days.`;
-            }
-
-            sellAssistantList.innerHTML += `
-              <div class="txn-card">
-                <div class="split-row">
-                  <div class="left-col">
-                    <div class="txn-name">${stock}</div>
-                    <div class="tiny-label">Qty ${qty} | Avg ₹${avgCost.toFixed(2)} | Ref ₹${referencePriceForSell.toFixed(2)}</div>
-                  </div>
-                  <div class="right-col">
-                    <span class="${actionCls}">${action}</span>
-                  </div>
-                </div>
-                <div class="split-row mt-1">
-                  <div class="left-col tiny-label">Unrealized: ₹${unrealizedForSell.toFixed(2)} (${unrealizedPct.toFixed(2)}%)</div>
-                  <div class="right-col tiny-label">Days: ${daysHeld}</div>
-                </div>
-                <div class="tiny-label mt-1">Rule: Target ${targetPct.toFixed(2)}% | Stop-loss ${stopLossPct.toFixed(2)}% | Min Hold ${minHoldDaysTrim}d</div>
-                <div class="suggestion-budget mt-1"><strong>Reason:</strong> ${reason}</div>
-              </div>
-            `;
-          }
 
           const base = s.cycleFirstBuyPrice;
           const level1 = base * (1 - settings.avgLevel1Pct / 100);
@@ -948,13 +811,6 @@ function loadInsights() {
             </div>`;
         }
 
-        if (sellAssistantList && !sellAssistantList.innerHTML) {
-          sellAssistantList.innerHTML = `
-            <div class="txn-card text-center text-muted">
-              No active holdings for sell discipline assistant
-            </div>`;
-        }
-
         if (capitalEfficiencyList) {
           const rankedEfficiency = buildCapitalEfficiencyRows(capitalRows, settings);
           renderCapitalEfficiency(capitalEfficiencyList, rankedEfficiency);
@@ -970,103 +826,209 @@ function loadInsights() {
           renderHoldingEdge(holdingEdgeList, edgeRows);
         }
 
-        if (actionPriorityList) {
-          const actionRows = buildActionPriorityRows(capitalRows, quality.byStock, settings);
-          renderActionPriority(actionPriorityList, actionRows);
-        }
-
-        if (mistakeSummaryEl && mistakeListEl) {
-          const stockRows = Object.keys(quality.byStock).map(stock => {
-            const q = quality.byStock[stock];
-            const penalties =
-              (q.chaseBuys * 8) +
-              (q.weakDropBuys * 12) +
-              (q.overAllocBuys * 15) +
-              (q.panicSells * 10);
-            const score = Math.max(0, 100 - penalties);
-            return { stock, ...q, score };
-          }).sort((a, b) => a.score - b.score);
-
-          const monthRows = Object.keys(quality.byMonth).map(month => {
-            const q = quality.byMonth[month];
-            const penalties =
-              (q.chaseBuys * 8) +
-              (q.weakDropBuys * 12) +
-              (q.overAllocBuys * 15) +
-              (q.panicSells * 10);
-            const score = Math.max(0, 100 - penalties);
-            return { month, ...q, score };
-          }).sort((a, b) => b.month.localeCompare(a.month));
-
-          const totalPenalties = stockRows.reduce((a, r) => a + (100 - r.score), 0);
-          const avgScore = stockRows.length ? Math.max(0, 100 - (totalPenalties / stockRows.length)) : 100;
-          const overallCls = avgScore >= 80 ? "ok" : (avgScore >= 60 ? "warn" : "bad");
-
-          mistakeSummaryEl.innerHTML = `
-            <div class="split-row">
-              <div class="left-col">
-                <div class="tiny-label">Overall Decision Quality</div>
-                <div class="metric-strong">${avgScore.toFixed(1)} / 100</div>
-              </div>
-              <div class="right-col">
-                <span class="status-pill-mini ${overallCls}">
-                  ${overallCls === "ok" ? "Healthy" : overallCls === "warn" ? "Needs Discipline" : "High Mistake Risk"}
-                </span>
-              </div>
-            </div>
-            <div class="status-inline mt-2">
-              ${monthRows.slice(0, 3).map(m => `<span class="status-pill-mini ${m.score >= 80 ? "ok" : m.score >= 60 ? "warn" : "bad"}">${m.month}: ${m.score.toFixed(0)}</span>`).join("")}
-            </div>
-          `;
-
-          if (!stockRows.length) {
-            mistakeListEl.innerHTML = `<div class="txn-card text-center text-muted">No data for mistake tracking</div>`;
-          } else {
-            mistakeListEl.innerHTML = stockRows.map(r => `
-              <div class="txn-card">
-                <div class="split-row" style="cursor:pointer" onclick="toggleMistakeDetails('mistake-${r.stock.replace(/\\s+/g, "-")}', this)">
-                  <div class="left-col">
-                    <div class="txn-name">${r.stock}</div>
-                    <div class="tiny-label">Buys ${r.buys} | Sells ${r.sells}</div>
-                  </div>
-                  <div class="right-col">
-                    <span class="status-pill-mini ${r.score >= 80 ? "ok" : r.score >= 60 ? "warn" : "bad"}">${r.score.toFixed(0)}</span>
-                    <i class="bi bi-chevron-down ms-2"></i>
-                  </div>
-                </div>
-                <div class="tiny-label mt-1">
-                  Chase: ${r.chaseBuys} | Weak Drop: ${r.weakDropBuys} | Over Alloc: ${r.overAllocBuys} | Panic Sells: ${r.panicSells}
-                </div>
-                <div id="mistake-${r.stock.replace(/\\s+/g, "-")}" style="display:none" class="mt-2">
-                  ${(r.details || []).length
-                    ? r.details.map(d => `
-                      <div class="section-shell">
-                        <div class="split-row">
-                          <div class="left-col tiny-label"><strong>${d.date}</strong> | ${d.type} | ${d.reason}</div>
-                        </div>
-                        <div class="tiny-label mt-1">${d.info}</div>
-                      </div>
-                    `).join("")
-                    : `<div class="tiny-label">No specific mistake-triggering transaction in current data.</div>`
-                  }
-                </div>
-              </div>
-            `).join("");
-          }
-        }
+        // set lastInsightsData for analyzer to use
+        window.lastInsightsData = { state, capitalRows, settings };
+        populateExitStockOptions(capitalRows);
+        initExitAnalyzerControls();
       };
   });
 }
 
-function toggleMistakeDetails(id, rowEl) {
-  const panel = document.getElementById(id);
-  if (!panel) return;
-  const hidden = panel.style.display === "none";
-  panel.style.display = hidden ? "block" : "none";
-  const icon = rowEl?.querySelector("i.bi");
-  if (icon) {
-    icon.classList.remove("bi-chevron-up", "bi-chevron-down");
-    icon.classList.add(hidden ? "bi-chevron-up" : "bi-chevron-down");
+// --- Smart Partial Exit & Re-Entry Analyzer helpers ---
+// Uses lastInsightsData set by loadInsights()
+function simulatePartialExit(stock, sellQty, sellPrice, lastInsights) {
+  if (!lastInsights || !lastInsights.state || !lastInsights.settings) return { error: "Insights data not available" };
+  const s = lastInsights.state[stock];
+  if (!s) return { error: "Stock not found in active holdings" };
+
+  const settings = lastInsights.settings;
+  // Compute total held & invested from current lots (copy to avoid mutation)
+  const lots = (s.lots || []).map(l => ({ qty: Number(l.qty), price: Number(l.price), brokeragePerUnit: Number(l.brokeragePerUnit || 0) }));
+  const totalQty = lots.reduce((a, l) => a + l.qty, 0);
+  const invested = lots.reduce((a, l) => a + l.qty * (l.price + l.brokeragePerUnit), 0);
+
+  if (sellQty <= 0 || sellQty > totalQty) return { error: "Invalid sell quantity" };
+
+  // SELL uses most-recent buys (simulate selling last buy(s)) => use lots from the end (LIFO of active lots)
+  let remainingToSell = sellQty;
+  let buyValueOfSold = 0;
+  const lotsCopy = lots.slice(); // left-to-right oldest->newest
+  for (let i = lotsCopy.length - 1; i >= 0 && remainingToSell > 0; i--) {
+    const lot = lotsCopy[i];
+    const used = Math.min(lot.qty, remainingToSell);
+    buyValueOfSold += used * (lot.price + (lot.brokeragePerUnit || 0));
+    remainingToSell -= used;
   }
+
+  // Sell brokerage estimation
+  const sellBrkg = resolveTxnBrokerage({ type: "SELL", qty: sellQty, price: sellPrice }, settings);
+
+  const sellValueGross = sellQty * sellPrice;
+  const netProfit = sellValueGross - buyValueOfSold - sellBrkg;
+  const profitPct = buyValueOfSold > 0 ? (netProfit / buyValueOfSold) * 100 : 0;
+
+  // Remaining position after sell
+  const remainingQty = totalQty - sellQty;
+  const remainingInvested = invested - buyValueOfSold;
+  const newAvgAfterSell = remainingQty > 0 ? (remainingInvested / remainingQty) : 0;
+  const oldAvg = totalQty > 0 ? (invested / totalQty) : 0;
+  const avgImprovement = oldAvg - newAvgAfterSell;
+
+  return {
+    stock,
+    sellQty,
+    sellPrice,
+    sellValueGross,
+    sellBrkg,
+    buyValueOfSold,
+    netProfit,
+    profitPct,
+    totalQty,
+    remainingQty,
+    invested,
+    remainingInvested,
+    oldAvg,
+    newAvgAfterSell,
+    avgImprovement,
+    settings,
+    s // provide state for further suggestions
+  };
+}
+
+function suggestReentry(simulation) {
+  const { s, settings, sellPrice } = simulation;
+  const base = Number(s.cycleFirstBuyPrice || s.cycleBuys?.[0]?.price || simulation.oldAvg || 0);
+  const lvl1 = base * (1 - Number(settings.avgLevel1Pct || 0) / 100);
+  const lvl2 = base * (1 - Number(settings.avgLevel2Pct || 0) / 100);
+
+  // Scenario A: price moves up -> WAIT. Nearest safe re-entry = L1 (or L2 when deeper pullback).
+  const upSuggestion = {
+    action: "WAIT",
+    reason: "Price has moved up after partial exit",
+    nearestSafeLevel: Number(lvl1.toFixed(2)),
+    confirmationCondition: `Look for pullback into L1 (~₹${lvl1.toFixed(2)}) or L2 (~₹${lvl2.toFixed(2)}). Avoid chasing above L1.`,
+    warnIfAboveZone: `If price stays above L1 without pullback, avoid chasing new buys.`
+  };
+
+  // Scenario B: price moves down -> recommend re-buy level.
+  // Choose suggested re-buy price between L1 and L2 or a discount from last sell.
+  const discountPct = 5; // default 5% discount heuristic
+  const discountedPrice = Number((sellPrice * (1 - discountPct / 100)).toFixed(2));
+  // Prefer using L1/L2 zones: suggest max(L2, min(L1, discountedPrice))
+  const suggestedPrice = Math.max(lvl2, Math.min(lvl1, discountedPrice));
+  const suggestedQty = simulation.sellQty; // default to re-buy same qty
+  const newTotalQty = simulation.remainingQty + suggestedQty;
+  const newTotalInvested = simulation.remainingInvested + (suggestedQty * suggestedPrice);
+  const newAvg = newTotalQty > 0 ? (newTotalInvested / newTotalQty) : 0;
+  const avgImprovementOnRebuy = simulation.oldAvg - newAvg;
+
+  const downSuggestion = {
+    action: "RE-BUY",
+    reason: "Price drops after sell offer a chance to re-enter at better price",
+    suggestedPrice: Number(suggestedPrice.toFixed(2)),
+    suggestedQty,
+    newAvg: Number(newAvg.toFixed(2)),
+    avgImprovementOnRebuy: Number(avgImprovementOnRebuy.toFixed(2)),
+    details: `Based on L1: ₹${lvl1.toFixed(2)}, L2: ₹${lvl2.toFixed(2)} and ${discountPct}% discount heuristic.`
+  };
+
+  return { upSuggestion, downSuggestion, lvl1: Number(lvl1.toFixed(2)), lvl2: Number(lvl2.toFixed(2)) };
+}
+
+function renderExitAnalysis(containerEl, simResult, suggestions) {
+  if (!containerEl) return;
+  if (simResult.error) {
+    containerEl.innerHTML = `<div class="txn-card text-danger">${simResult.error}</div>`;
+    return;
+  }
+
+  const profitCls = simResult.netProfit >= 0 ? "profit" : "loss";
+  containerEl.innerHTML = `
+    <div class="txn-card">
+      <div class="split-row">
+        <div class="left-col">
+          <div class="txn-name">${simResult.stock}</div>
+          <div class="tiny-label">Sold ${simResult.sellQty} | Price ₹${simResult.sellPrice.toFixed(2)}</div>
+        </div>
+        <div class="right-col">
+          <div class="metric-strong ${profitCls}">₹${simResult.netProfit.toFixed(2)}</div>
+          <div class="tiny-label">${simResult.profitPct.toFixed(2)}% profit on sold lot</div>
+        </div>
+      </div>
+
+      <div class="mt-2 tiny-label"><strong>Impact on Holdings</strong></div>
+      <div class="txn-sub">
+        Remaining Qty: ${simResult.remainingQty} | Old Avg: ₹${simResult.oldAvg.toFixed(2)} | New Avg: ₹${simResult.newAvgAfterSell ? simResult.newAvgAfterSell.toFixed(2) : "-"} | Avg Improvement: ₹${simResult.avgImprovement.toFixed(2)}
+      </div>
+
+      <div class="mt-2 tiny-label"><strong>Post-Sell Strategy</strong></div>
+
+      <div class="section-shell mt-1">
+        <div class="tiny-label"><strong>If price moves UP:</strong></div>
+        <div class="tiny-label">${suggestions.upSuggestion.reason}</div>
+        <div class="tiny-label">Nearest safe re-entry: ₹${suggestions.upSuggestion.nearestSafeLevel}</div>
+        <div class="tiny-label text-muted">${suggestions.upSuggestion.confirmationCondition}</div>
+      </div>
+
+      <div class="section-shell mt-2">
+        <div class="tiny-label"><strong>If price moves DOWN:</strong></div>
+        <div class="tiny-label">${suggestions.downSuggestion.reason}</div>
+        <div class="tiny-label">Suggested re-buy: ₹${suggestions.downSuggestion.suggestedPrice} | Qty: ${suggestions.downSuggestion.suggestedQty}</div>
+        <div class="tiny-label">Projected new avg: ₹${suggestions.downSuggestion.newAvg} (avg improve ₹${suggestions.downSuggestion.avgImprovementOnRebuy})</div>
+        <div class="tiny-label text-muted">${suggestions.downSuggestion.details}</div>
+      </div>
+
+      <div class="suggestion-budget mt-2">
+        <strong>Consolidated Action:</strong>
+        ${suggestions.downSuggestion.avgImprovementOnRebuy > 0 ? `Re-buy at ₹${suggestions.downSuggestion.suggestedPrice} to improve avg` : `Wait for pullback into L1 (${suggestions.lvl1}) or L2 (${suggestions.lvl2})`}
+      </div>
+    </div>
+  `;
+}
+
+// Wire UI controls for analyzer
+function initExitAnalyzerControls() {
+  const stockInput = document.getElementById("exitStockInput");
+  const qtyInput = document.getElementById("exitSellQty");
+  const priceInput = document.getElementById("exitSellPrice");
+  const simulateBtn = document.getElementById("exitSimulateBtn");
+  const resetBtn = document.getElementById("exitResetBtn");
+  const resultEl = document.getElementById("exitAnalyzerResult");
+
+  simulateBtn?.addEventListener("click", () => {
+    const stock = (stockInput?.value || "").trim();
+    const sellQty = Number(qtyInput?.value || 0);
+    const sellPrice = Number(priceInput?.value || 0);
+    if (!stock) {
+      if (resultEl) resultEl.innerHTML = `<div class="txn-card text-danger">Select a stock</div>`;
+      return;
+    }
+    if (sellQty <= 0 || sellPrice <= 0) {
+      if (resultEl) resultEl.innerHTML = `<div class="txn-card text-danger">Enter valid sell qty and price</div>`;
+      return;
+    }
+
+    const sim = simulatePartialExit(stock, sellQty, sellPrice, window.lastInsightsData);
+    if (sim.error) {
+      if (resultEl) resultEl.innerHTML = `<div class="txn-card text-danger">${sim.error}</div>`;
+      return;
+    }
+    const suggestions = suggestReentry({ ...sim, sellPrice });
+    renderExitAnalysis(resultEl, sim, suggestions);
+  });
+
+  resetBtn?.addEventListener("click", () => {
+    if (stockInput) stockInput.value = "";
+    if (qtyInput) qtyInput.value = "";
+    if (priceInput) priceInput.value = "";
+    if (resultEl) resultEl.innerHTML = "";
+  });
+}
+
+// Populate analyzer stock options based on active holdings
+function populateExitStockOptions(capitalRows) {
+  const dl = document.getElementById("exitStockOptions");
+  if (!dl) return;
+  dl.innerHTML = (capitalRows || []).map(r => `<option value="${r.stock}"></option>`).join("");
 }
 

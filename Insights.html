@@ -64,35 +64,42 @@
     </div>
   </section>
 
+  <!-- =================================================
+       FEATURE: Smart Exit & Re-Entry Analyzer
+       ================================================= -->
   <section class="panel">
     <div class="panel-head">
       <div>
-        <h3 class="panel-title"><i class="bi bi-shield-exclamation"></i> Mistake Tracker Score</h3>
-        <p class="panel-note">Tracks chase buys, weak drops, over-allocation buys, and panic sells.</p>
+        <h3 class="panel-title"><i class="bi bi-scissors"></i> Smart Exit & Re-Entry Analyzer</h3>
+        <p class="panel-note">Simulate partial sell and get suggested re-entry plan based on your buy history.</p>
       </div>
-      <button class="icon-toggle-btn" type="button" aria-label="Toggle Mistake Tracker" onclick="toggleInsightsSection('mistakeTrackerPanel', this)">
+      <button class="icon-toggle-btn" type="button" aria-label="Toggle Exit Analyzer" onclick="toggleInsightsSection('exitAnalyzerPanel', this)">
         <i class="bi bi-chevron-down"></i>
       </button>
     </div>
-    <div class="panel-body tight" id="mistakeTrackerPanel" style="display:none">
-      <div id="mistakeTrackerSummary"></div>
-      <div id="mistakeTrackerList" class="mt-2"></div>
-    </div>
-  </section>
+    <div class="panel-body tight" id="exitAnalyzerPanel" style="display:none">
+      <div class="row g-2 mb-2">
+        <div class="col-5">
+          <label class="tiny-label">Stock</label>
+          <input id="exitStockInput" list="exitStockOptions" class="form-control form-control-sm" placeholder="Select stock">
+          <datalist id="exitStockOptions"></datalist>
+        </div>
+        <div class="col-3">
+          <label class="tiny-label">Sell Qty</label>
+          <input id="exitSellQty" type="number" min="1" class="form-control form-control-sm" placeholder="Qty">
+        </div>
+        <div class="col-4">
+          <label class="tiny-label">Sell Price (₹)</label>
+          <input id="exitSellPrice" type="number" step="0.01" class="form-control form-control-sm" placeholder="Price">
+        </div>
+      </div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3 class="panel-title"><i class="bi bi-signpost-split"></i> Sell Discipline Assistant</h3>
-        <p class="panel-note">Rule-based Hold / Trim / Exit suggestion for active holdings.</p>
+      <div class="d-flex gap-2 mb-2">
+        <button id="exitSimulateBtn" class="btn btn-sm btn-primary">Simulate Sell</button>
+        <button id="exitResetBtn" class="btn btn-sm btn-outline-secondary">Reset</button>
       </div>
-      <button class="icon-toggle-btn" type="button" aria-label="Toggle Sell Discipline" onclick="toggleInsightsSection('sellAssistantPanel', this)">
-        <i class="bi bi-chevron-down"></i>
-      </button>
-    </div>
-    <div class="panel-body tight" id="sellAssistantPanel" style="display:none">
-      <div class="tiny-label mb-2">Reference price uses latest transaction price (not live market feed).</div>
-      <div id="sellAssistantList"></div>
+
+      <div id="exitAnalyzerResult"></div>
     </div>
   </section>
 
@@ -170,21 +177,6 @@
     </div>
     <div class="panel-body tight" id="holdingEdgePanel" style="display:none">
       <div id="holdingEdgeList"></div>
-    </div>
-  </section>
-
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3 class="panel-title"><i class="bi bi-list-check"></i> Action Priority Queue</h3>
-        <p class="panel-note">Top stocks that need immediate attention based on risk, return, and discipline signals.</p>
-      </div>
-      <button class="icon-toggle-btn" type="button" aria-label="Toggle Action Priority Queue" onclick="toggleInsightsSection('actionPriorityPanel', this)">
-        <i class="bi bi-chevron-down"></i>
-      </button>
-    </div>
-    <div class="panel-body tight" id="actionPriorityPanel" style="display:none">
-      <div id="actionPriorityList"></div>
     </div>
   </section>
 
