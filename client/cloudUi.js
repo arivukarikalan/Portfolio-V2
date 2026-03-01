@@ -10,25 +10,53 @@ import { uploadToCloud, restoreFromCloud } from './cloudSync.js';
 
 // Replace or set this URL at runtime (do not hardcode secrets)
 // Default set to the URL you provided; can be overridden at runtime by setting window.APP_APPS_SCRIPT_URL
-const APPS_SCRIPT_URL = window.APP_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzhUIiOEAqK6x5txJHZwI_dwnc-gPWg7sAn169b3Lje1wFiiFYugukLxYHwxc2fpZNU/exec';
+const APPS_SCRIPT_URL = window.APP_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbxRX-y7kiDT4GqN18F6-e46pibw_gbJxmOHlglm4YCoUMjYdhVt-vbBj2fQgGkcQr8S/exec';
 
 // Expose for console/debug use
 if (typeof window !== 'undefined') window.APP_APPS_SCRIPT_URL = window.APP_APPS_SCRIPT_URL || APPS_SCRIPT_URL;
 
 function showToast(message, type = 'info', ms = 5000) {
-  // Minimal toast: can be replaced by app's notification system
-  const el = document.createElement('div');
-  el.textContent = message;
-  el.style.position = 'fixed';
-  el.style.right = '16px';
-  el.style.bottom = '16px';
-  el.style.padding = '8px 12px';
-  el.style.background = type === 'error' ? '#c0392b' : (type === 'success' ? '#27ae60' : '#333');
-  el.style.color = '#fff';
-  el.style.borderRadius = '4px';
-  el.style.zIndex = 9999;
-  document.body.appendChild(el);
-  setTimeout(() => { el.remove(); }, ms);
+  const text = String(message || '').trim();
+  if (!text) return;
+
+  // Reuse global toast helper when available.
+  if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
+    try {
+      window.showToast(text, type);
+      return;
+    } catch (e) {}
+  }
+
+  let host = document.getElementById('toastHost');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'toastHost';
+    host.className = 'toast-host';
+    document.body.appendChild(host);
+  }
+
+  const iconMap = {
+    success: 'bi-check2-circle',
+    error: 'bi-exclamation-octagon',
+    info: 'bi-info-circle'
+  };
+  const iconClass = iconMap[type] || iconMap.info;
+
+  const toast = document.createElement('div');
+  toast.className = `app-toast ${type}`;
+  toast.innerHTML = `
+    <div class="app-toast-inner">
+      <span class="app-toast-icon"><i class="bi ${iconClass}"></i></span>
+      <span class="app-toast-text">${text}</span>
+    </div>
+    <span class="app-toast-progress"></span>
+  `;
+  host.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add('hide');
+    setTimeout(() => toast.remove(), 220);
+  }, Math.max(1200, ms));
 }
 
 /* Create minimal controls if buttons are missing in the existing UI.
@@ -85,7 +113,19 @@ function wireButtons() {
       syncBtn.disabled = true;
       showToast('Preparing export...', 'info', 2000);
       try {
-        const res = await uploadToCloud(window.APP_APPS_SCRIPT_URL);
+        // attach only userId (no passkey/hash persisted)
+        let opts = { eventType: 'manual_sync', skipIfNoChange: true };
+        try {
+          const userId = localStorage.getItem('activeUserId');
+          if (userId) opts.userId = userId;
+          // passkey plaintext is never used; hash is auto-filled from cloud in uploadToCloud().
+        } catch (e) { /* ignore */ }
+
+        const res = await uploadToCloud(window.APP_APPS_SCRIPT_URL, opts);
+        if (res && res.skipped) {
+          showToast('No changes since last cloud snapshot', 'info', 4000);
+          return;
+        }
         // Try to show exportedAt if Apps Script returned it
         const exportedAt = res && res.response && (res.response.exportedAt || res.response.exportedAt === 0) ? res.response.exportedAt : null;
         if (exportedAt) {
@@ -109,9 +149,27 @@ function wireButtons() {
     restoreBtn.addEventListener('click', async () => {
       if (!window.APP_APPS_SCRIPT_URL) { showToast('Cloud URL not configured', 'error'); return; }
       restoreBtn.disabled = true;
+      const cleanupDialogs = () => {
+        try {
+          document.querySelectorAll('.app-dialog-backdrop').forEach(el => el.remove());
+        } catch (e) {}
+      };
       try {
         const result = await restoreFromCloud(window.APP_APPS_SCRIPT_URL, { confirmFn: async (msg) => {
-          return window.confirm(msg);
+          if (typeof window !== 'undefined' && typeof window.appConfirmDialog === 'function') {
+            const ok = await window.appConfirmDialog(msg, { title: 'Restore From Cloud', okText: 'Restore' });
+            cleanupDialogs(); // guard against any stale/stacked dialog remnants
+            if (ok && typeof window.appShowLoading === 'function') {
+              window.appShowLoading('Restoring from cloud...');
+            }
+            return ok;
+          }
+          const ok = window.confirm(msg);
+          cleanupDialogs();
+          if (ok && typeof window !== 'undefined' && typeof window.appShowLoading === 'function') {
+            window.appShowLoading('Restoring from cloud...');
+          }
+          return ok;
         }});
         showToast('Local data restored from cloud snapshot', 'success', 6000);
         console.info('restore result', result);
@@ -179,6 +237,10 @@ function wireButtons() {
           console.info('If you still see "no_backups": confirm the deployed Apps Script uses the same SPREADSHEET_ID and is the latest deployment. Paste the console outputs here for further analysis.');
         }
       } finally {
+        cleanupDialogs();
+        if (typeof window !== 'undefined' && typeof window.appHideLoading === 'function') {
+          window.appHideLoading();
+        }
         restoreBtn.disabled = false;
       }
     });
@@ -223,6 +285,19 @@ if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', () => {
     try { wireButtons(); } catch (e) { /* ignore wiring errors */ }
   });
+
+  // If the module is imported after DOMContentLoaded, call wireButtons immediately.
+  // This makes wiring idempotent and fixes "clicks do nothing" when the module loads late.
+  try {
+    if (document.readyState === 'interactive' || document.readyState === 'complete') {
+      // run in microtask to avoid blocking import execution
+      Promise.resolve().then(() => {
+        try { wireButtons(); } catch (e) { /* ignore */ }
+      });
+    }
+  } catch (e) {
+    /* ignore environments without document */
+  }
 }
 
 /* Export for manual wiring if needed */

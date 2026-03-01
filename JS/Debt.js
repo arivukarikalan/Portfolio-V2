@@ -81,14 +81,17 @@ async function debtExportCSV() {
   if (typeof showToast === "function") showToast("Debt CSV exported successfully");
 }
 
-function debtImportCSV() {
+async function debtImportCSV() {
   const fileInput = document.getElementById("debtImportFile");
   const file = fileInput?.files?.[0];
   if (!file) {
     if (typeof showToast === "function") showToast("Please select a debt CSV file first", "error");
     return;
   }
-  if (!confirm("This will overwrite debt borrowing and repayment records. Continue?")) return;
+  const ok = (typeof window !== "undefined" && typeof window.appConfirmDialog === "function")
+    ? await window.appConfirmDialog("This will overwrite debt borrowing and repayment records. Continue?", { title: "Confirm Import", okText: "Overwrite" })
+    : window.confirm("This will overwrite debt borrowing and repayment records. Continue?");
+  if (!ok) return;
 
   const reader = new FileReader();
   reader.onload = e => debtProcessCSV(String(e.target?.result || ""));

@@ -1,11 +1,28 @@
-/* cloudSync.js
+﻿/* cloudSync.js
    - Reads IndexedDB stores and builds export JSON
    - Uploads JSON to a Google Apps Script URL (POST)
    - Fetches latest snapshot from Apps Script (GET) and restores DB
    - Does not modify any existing business logic; works in isolation
 */
 
-const DB_NAME = 'PortfolioDB'; // <-- adjust if your app uses a different DB name
+let CURRENT_DB_BASE = 'PortfolioDB';
+let CURRENT_USER_ID = null;
+const FIXED_DB_NAME = 'PortfolioDB'; // Always use a single DB name
+
+export function setUserContext(userId) {
+  if (userId && typeof userId === 'string' && userId.trim()) {
+    CURRENT_USER_ID = userId;
+  } else {
+    CURRENT_USER_ID = null;
+  }
+  // publish fixed DB name for non-module scripts
+  try { if (typeof window !== 'undefined') window.PORTFOLIO_DB_NAME = FIXED_DB_NAME; } catch (e) {}
+}
+
+export function getCurrentUserId() {
+  return CURRENT_USER_ID;
+}
+
 const STORE_NAMES = {
   transactions: 'transactions',
   settings: 'settings',
@@ -15,6 +32,59 @@ const STORE_NAMES = {
 const DEVICE_ID_KEY = 'pt_device_id';
 const APP_NAME = 'PortfolioTracker';
 const APP_VERSION = '1.0';
+
+async function fetchAllCloudRows(appsScriptUrl, opts = {}) {
+  const url = new URL(appsScriptUrl);
+  url.searchParams.set('mode', 'all');
+  if (opts.userId) url.searchParams.set('userId', opts.userId);
+
+  const res = await fetch(url.toString(), { method: 'GET', signal: opts.signal });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`Fetch all failed: ${res.status} ${res.statusText} ${txt}`);
+  }
+  const text = await res.text();
+  let parsed = null;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    if (jsonMatch) {
+      try { parsed = JSON.parse(jsonMatch[0]); } catch (e2) { parsed = null; }
+    }
+  }
+  if (!parsed) throw new Error('Invalid JSON in cloud all response');
+  return Array.isArray(parsed?.rows) ? parsed.rows : [];
+}
+
+async function getLatestRecoveryKeyHashForUser(appsScriptUrl, userId, opts = {}) {
+  if (!userId) return null;
+  const wanted = String(userId).trim();
+  try {
+    const rows = await fetchAllCloudRows(appsScriptUrl, { userId: wanted, signal: opts.signal });
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      let rowUserId = String(rows[i]?.userId || '').trim();
+      let hash = rows[i]?.recoveryKeyHash;
+      if ((!rowUserId || !hash) && rows[i]?.jsonPayload) {
+        try {
+          const payload = JSON.parse(String(rows[i].jsonPayload));
+          if (!rowUserId) rowUserId = String(payload?.userId || '').trim();
+          if (!hash) hash = payload?.recoveryKeyHash || payload?.recovery_key || null;
+        } catch (e) {}
+      }
+      if (rowUserId !== wanted) continue;
+      if (hash && String(hash).trim()) return String(hash).trim();
+    }
+  } catch (e) {
+    // fallback to latest endpoint
+    try {
+      const latest = await fetchLatestFromCloud(appsScriptUrl, { userId: wanted, signal: opts.signal });
+      const hash = latest?.recoveryKeyHash || latest?.recovery_key || null;
+      if (hash) return String(hash).trim();
+    } catch (e2) {}
+  }
+  return null;
+}
 
 /* Generate or return a persistent deviceId stored in localStorage */
 function getDeviceId() {
@@ -41,15 +111,53 @@ function readStore(db, storeName) {
   });
 }
 
-/* Open existing DB and return IDBDatabase instance */
+/* Open existing DB and return IDBDatabase instance (always uses FIXED_DB_NAME)
+   Ensures the known object stores exist. If missing, performs a version upgrade
+   to create them so subsequent transactions (clearAndRestore) do not fail.
+*/
 function openDatabase() {
+  const requiredStores = Object.values(STORE_NAMES);
+  const DB_NAME = FIXED_DB_NAME;
+
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-    req.onupgradeneeded = () => {
-      // Do not change schema here; fail safe if app hasn't created stores yet.
+    let req = indexedDB.open(DB_NAME);
+
+    req.onupgradeneeded = (ev) => {
+      const db = ev.target.result;
+      for (const s of requiredStores) {
+        if (!db.objectStoreNames.contains(s)) {
+          db.createObjectStore(s, { keyPath: 'id', autoIncrement: true });
+        }
+      }
     };
+
+    req.onsuccess = async () => {
+      const db = req.result;
+      try {
+        const missing = requiredStores.filter(s => !db.objectStoreNames.contains(s));
+        if (missing.length === 0) {
+          return resolve(db);
+        }
+        const newVersion = db.version + 1;
+        db.close();
+        const req2 = indexedDB.open(DB_NAME, newVersion);
+        req2.onupgradeneeded = (ev2) => {
+          const d = ev2.target.result;
+          for (const s of requiredStores) {
+            if (!d.objectStoreNames.contains(s)) {
+              d.createObjectStore(s, { keyPath: 'id', autoIncrement: true });
+            }
+          }
+        };
+        req2.onsuccess = () => resolve(req2.result);
+        req2.onerror = () => reject(req2.error || new Error('Failed to open db for upgrade'));
+      } catch (err) {
+        try { db.close(); } catch (e) {}
+        reject(err);
+      }
+    };
+
+    req.onerror = () => reject(req.error || new Error('Failed to open IndexedDB'));
   });
 }
 
@@ -87,30 +195,25 @@ export async function exportAll() {
   }
 }
 
-/* Upload export JSON to Google Apps Script URL (POST)
-   appsScriptUrl: string (required)
-   opts: { signal?: AbortSignal, onProgress?: fn } (optional)
 
-   Behavior:
-   - First attempt: POST JSON as text/plain to avoid CORS preflight.
-   - Fallback: POST as application/x-www-form-urlencoded (payload=...) if first attempt fails.
+/* Upload provided snapshot JSON to Google Apps Script URL (POST)
+   - Does NOT read IndexedDB; caller supplies full payload object.
+   - Used by auth/profile flows that must avoid creating local DB before login.
 */
-export async function uploadToCloud(appsScriptUrl, opts = {}) {
+export async function uploadSnapshotToCloud(appsScriptUrl, snapshot, opts = {}) {
   if (!appsScriptUrl) throw new Error('appsScriptUrl required');
-  const payload = await exportAll();
-  const bodyJson = JSON.stringify(payload);
+  if (!snapshot || typeof snapshot !== 'object') throw new Error('snapshot object required');
 
-  // helper to perform fetch and parse response
+  const bodyJson = JSON.stringify(snapshot);
+
   async function doFetch(bodyToSend, headers) {
     const res = await fetch(appsScriptUrl, {
       method: 'POST',
       headers,
       body: bodyToSend,
       signal: opts.signal,
-      // Keep defaults for mode/credentials; using a "simple" Content-Type avoids preflight
     });
 
-    // Opaque response indicates CORS / deployment issue
     if (res.type === 'opaque') {
       throw new Error('Opaque response from server - possible CORS/deployment issue (check Apps Script access settings).');
     }
@@ -120,7 +223,6 @@ export async function uploadToCloud(appsScriptUrl, opts = {}) {
       throw new Error(`Upload failed: ${res.status} ${res.statusText} ${txt}`);
     }
 
-    // Expect JSON response from Apps Script
     const json = await res.json().catch(async () => {
       const t = await res.text().catch(() => '');
       throw new Error('Invalid JSON response from cloud: ' + t);
@@ -128,48 +230,155 @@ export async function uploadToCloud(appsScriptUrl, opts = {}) {
     return { ok: true, response: json };
   }
 
-  // First, try as text/plain (simple request -> no preflight)
   try {
     const headers = { 'Content-Type': 'text/plain;charset=UTF-8' };
     return await doFetch(bodyJson, headers);
   } catch (err) {
-    // If error looks like CORS/fetch failure, try fallback
     const msg = err && err.message ? err.message.toLowerCase() : '';
     const shouldFallback = msg.includes('opaque') || msg.includes('failed to fetch') || msg.includes('preflight') || msg.includes('cors');
-
-    if (!shouldFallback) {
-      // not a CORS-like error, rethrow
-      throw err;
-    }
-
-    // Fallback: send as application/x-www-form-urlencoded -> also a "simple" request
+    if (!shouldFallback) throw err;
     try {
       const formBody = 'payload=' + encodeURIComponent(bodyJson);
       const headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' };
       return await doFetch(formBody, headers);
     } catch (err2) {
-      // Give a helpful final message for debugging
       const finalMsg = (err2 && err2.message) ? err2.message : String(err2);
       throw new Error('Upload failed (attempted text/plain and form fallback). ' + finalMsg + ' Check Apps Script deployment (Execute as: Me) and access (Anyone, even anonymous).');
     }
   }
-}
-
-/* Fetch latest snapshot from Apps Script (GET) and return parsed JSON payload.
+}/* Upload export JSON to Google Apps Script URL (POST)
    appsScriptUrl: string (required)
-   This implementation is tolerant to various Apps Script response shapes:
-   - fully-formed export object { app, version, exportedAt, deviceId, data: { ... } }
-   - wrapper { raw: "...", ... } or { jsonPayload: "..." }
-   - payload where transactions/settings/debt are at the top level
-   It will attempt multiple parse strategies and return a normalized payload.
+   opts may include:
+     - userId: optional (string) to include in snapshot
+     - recoveryKeyHash: optional (string) to include in snapshot
+*/
+export async function uploadToCloud(appsScriptUrl, opts = {}) {
+  if (!appsScriptUrl) throw new Error('appsScriptUrl required');
+  const payload = await exportAll();
+
+  // attach profile metadata if available (prefer opts, fallback to current context)
+  const userIdToSend = opts.userId || CURRENT_USER_ID || null;
+  let recoveryKeyHashToSend = opts.recoveryKeyHash || null;
+  if (!recoveryKeyHashToSend && userIdToSend) {
+    recoveryKeyHashToSend = await getLatestRecoveryKeyHashForUser(appsScriptUrl, userIdToSend, opts);
+  }
+  if (!recoveryKeyHashToSend && typeof window !== 'undefined') {
+    const sessionHash = window.__sessionRecoveryKeyHash || null;
+    if (sessionHash) recoveryKeyHashToSend = String(sessionHash);
+  }
+  if (!recoveryKeyHashToSend && userIdToSend) {
+    console.warn('Missing recoveryKeyHash for upload; proceeding without hash (server may backfill).');
+  }
+
+  if (opts.skipIfNoChange && userIdToSend) {
+    try {
+      const latest = await fetchLatestFromCloud(appsScriptUrl, { userId: userIdToSend, signal: opts.signal });
+      if (latest?.data && JSON.stringify(latest.data) === JSON.stringify(payload.data)) {
+        return { ok: true, skipped: true, reason: 'no_change' };
+      }
+    } catch (e) {
+      // ignore compare failures and continue upload
+    }
+  }
+
+  const extended = Object.assign({}, payload, {
+    userId: userIdToSend || undefined,
+    recoveryKeyHash: recoveryKeyHashToSend || undefined,
+    eventType: opts.eventType || undefined
+  });
+
+  return uploadSnapshotToCloud(appsScriptUrl, extended, opts);
+}
+/* Fetch latest snapshot from Apps Script (GET)
+   accepts opts.userId to restrict snapshots to a particular user in the server-side filter.
 */
 export async function fetchLatestFromCloud(appsScriptUrl, opts = {}) {
   if (!appsScriptUrl) throw new Error('appsScriptUrl required');
   try {
+    // For login/restore with a specific userId, use mode=all and strict client-side filtering.
+    // This avoids older/misconfigured deployments returning another user's latest snapshot.
+    if (opts.userId) {
+      const wanted = String(opts.userId).trim();
+      const rows = await fetchAllCloudRows(appsScriptUrl, { userId: wanted, signal: opts.signal });
+
+      let best = null;
+      let bestTime = -1;
+      let canonicalHash = null;
+      let canonicalProfileCreateTime = -1;
+      let canonicalLatestHash = null;
+      let canonicalLatestTime = -1;
+      for (let i = 0; i < rows.length; i += 1) {
+        const row = rows[i] || {};
+        const rowUser = String(row.userId || '').trim();
+        let payload = null;
+        try {
+          payload = row.jsonPayload ? JSON.parse(String(row.jsonPayload)) : null;
+        } catch (e) {
+          payload = null;
+        }
+        const payloadUser = String(payload?.userId || '').trim();
+        const effectiveUser = rowUser || payloadUser;
+        if (effectiveUser !== wanted) continue;
+
+        const rowHash = String(
+          row.recoveryKeyHash ||
+          payload?.recoveryKeyHash ||
+          payload?.recovery_key ||
+          ''
+        ).trim();
+        const rowEventType = String(row.eventType || payload?.eventType || '').trim();
+        const rowTimeRaw = payload?.exportedAt || row.exportedAt || 0;
+        const rowTimeParsed = Date.parse(rowTimeRaw);
+        const rowTime = Number.isFinite(rowTimeParsed) ? rowTimeParsed : 0;
+
+        // Build canonical hash for this user:
+        // prefer latest profile_create hash; else latest any hash.
+        if (rowHash) {
+          if (rowTime >= canonicalLatestTime) {
+            canonicalLatestTime = rowTime;
+            canonicalLatestHash = rowHash;
+          }
+          if (rowEventType === 'profile_create' && rowTime >= canonicalProfileCreateTime) {
+            canonicalProfileCreateTime = rowTime;
+            canonicalHash = rowHash;
+          }
+        }
+
+        if (!payload || typeof payload !== 'object' || !payload.data) continue;
+
+        if (!payload.userId) payload.userId = effectiveUser;
+        if (!payload.exportedAt && row.exportedAt) payload.exportedAt = row.exportedAt;
+        if (!payload.deviceId && row.deviceId) payload.deviceId = row.deviceId;
+        if (!payload.version && row.appVersion) payload.version = row.appVersion;
+        if (!payload.eventType && row.eventType) payload.eventType = row.eventType;
+        if (!payload.recoveryKeyHash && row.recoveryKeyHash) payload.recoveryKeyHash = row.recoveryKeyHash;
+        payload._sheetName = row.sheetName || payload._sheetName || null;
+
+        const t = Date.parse(payload.exportedAt || row.exportedAt || 0);
+        const tm = Number.isFinite(t) ? t : 0;
+        if (!best || tm >= bestTime) {
+          best = payload;
+          bestTime = tm;
+        }
+      }
+
+      const finalCanonicalHash = (canonicalHash || canonicalLatestHash || null);
+      if (best && !best.recoveryKeyHash && finalCanonicalHash) {
+        best.recoveryKeyHash = finalCanonicalHash;
+      }
+
+      if (best && best.data && (best.data.transactions || best.data.settings || best.data.debt)) {
+        return best;
+      }
+      throw new Error(`No cloud snapshot found for userId: ${wanted}`);
+    }
+
     const url = new URL(appsScriptUrl);
     url.searchParams.set('mode', 'latest');
+    // pass userId to server filter if provided
+    if (opts.userId) url.searchParams.set('userId', opts.userId);
+
     const res = await fetch(url.toString(), { method: 'GET', signal: opts.signal });
-    // If non-OK, attempt to read body (for better diagnostics)
     if (!res.ok) {
       const txt = await res.text().catch(() => '');
       throw new Error(`Fetch failed: ${res.status} ${res.statusText} ${txt}`);
@@ -177,150 +386,22 @@ export async function fetchLatestFromCloud(appsScriptUrl, opts = {}) {
     const text = await res.text();
     if (!text) throw new Error('Empty response from cloud');
 
-    // Keep the raw latest response for diagnostics
+    // existing tolerant parsing/normalization logic follows...
     const rawLatest = text;
 
     let parsed;
     try {
       parsed = JSON.parse(text);
     } catch (e) {
-      // try to extract JSON substring
       const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
       if (jsonMatch) {
         try { parsed = JSON.parse(jsonMatch[0]); } catch (e2) { parsed = null; }
       } else parsed = null;
     }
 
-    // If server indicated no backups or no_valid_backups, attempt mode=all fallback
-    if (parsed && parsed.error && (parsed.error === 'no_backups' || parsed.error === 'no_valid_backups')) {
-      // try mode=all to get rows and scan them
-      try {
-        const allUrl = new URL(appsScriptUrl);
-        allUrl.searchParams.set('mode', 'all');
-        const r2 = await fetch(allUrl.toString(), { method: 'GET', signal: opts.signal });
-        if (!r2.ok) {
-          const txt = await r2.text().catch(() => '');
-          throw new Error('Fallback fetch mode=all failed: ' + (txt || r2.statusText));
-        }
-        const txt2 = await r2.text();
-        let parsedAll;
-        try {
-          parsedAll = JSON.parse(txt2);
-        } catch (e) {
-          // include both responses for debugging
-          throw new Error('Fallback mode=all returned non-JSON. latest response snippet: '
-            + (rawLatest.slice(0,500)) + ' ... ; mode=all response snippet: ' + (txt2.slice(0,500)));
-        }
-        if (parsedAll && Array.isArray(parsedAll.rows)) {
-          // scan rows for a parseable payload
-          for (const rowObj of parsedAll.rows) {
-            // try jsonPayload first
-            const candidates = [];
-            if (rowObj.jsonPayload) candidates.push(rowObj.jsonPayload);
-            // also scan rawRow string entries
-            if (Array.isArray(rowObj.rawRow)) {
-              for (const cell of rowObj.rawRow) {
-                if (typeof cell === 'string') candidates.push(cell);
-              }
-            }
-            for (const c of candidates) {
-              if (!c || typeof c !== 'string') continue;
-              const s = c.trim();
-              if (!(s.startsWith('{') || s.startsWith('['))) continue;
-              try {
-                const p = JSON.parse(s);
-                // attach metadata from rowObj if missing
-                if (!p.exportedAt && rowObj.exportedAt) p.exportedAt = rowObj.exportedAt;
-                if (!p.deviceId && rowObj.deviceId) p.deviceId = rowObj.deviceId;
-                if (!p.version && rowObj.appVersion) p.version = rowObj.appVersion;
-                // simple validation: must contain data
-                if (p && p.data) return p;
-                // if top-level transactions, wrap
-                if (p && (p.transactions || p.settings || p.debt)) {
-                  return {
-                    app: p.app || APP_NAME,
-                    version: p.version || APP_VERSION,
-                    exportedAt: p.exportedAt || new Date().toISOString(),
-                    deviceId: p.deviceId || '',
-                    data: {
-                      transactions: Array.isArray(p.transactions) ? p.transactions : [],
-                      settings: p.settings || {},
-                      debt: p.debt || { borrows: (p.borrows || []), repays: (p.repays || []) }
-                    }
-                  };
-                }
-              } catch (e) {
-                continue;
-              }
-            }
-          }
-          // no parseable rows found — include a snippet of rows for debugging
-          const rowsSnippet = JSON.stringify(parsedAll.rows.slice(0,5)).slice(0,1000);
-          throw new Error('No parseable backup found in sheet rows returned by server. Rows sample: ' + rowsSnippet);
-        }
-        throw new Error('No parseable backup found in sheet rows returned by server. mode=all response: ' + (txt2.slice(0,500)));
-      } catch (fallbackErr) {
-        // surface fallback error plus the original latest response snippet
-        throw new Error('Initial fetch reported "' + parsed.error + '". Fallback attempt failed: '
-          + (fallbackErr.message || fallbackErr)
-          + ' | latest response snippet: ' + (rawLatest.slice(0,500)));
-      }
-    }
-
-    // If parsed is an error object, surface it
-    if (parsed && parsed.error) {
-      throw new Error('Server error: ' + parsed.error + ' | server response snippet: ' + (rawLatest.slice(0,500)));
-    }
-
     if (!parsed) throw new Error('Invalid JSON in cloud response. Server returned: ' + (rawLatest.slice(0,500)));
 
-    // Try to normalize parsed to expected shape (reuse existing tolerant logic)
-    // If parsed contains data, accept it
     if (parsed.data && (parsed.data.transactions || parsed.data.settings || parsed.data.debt)) return parsed;
-
-    // If parsed has raw/jsonPayload/payload string, try to parse inner
-    const innerCandidates = [];
-    if (typeof parsed.raw === 'string') innerCandidates.push(parsed.raw);
-    if (typeof parsed.jsonPayload === 'string') innerCandidates.push(parsed.jsonPayload);
-    if (typeof parsed.payload === 'string') innerCandidates.push(parsed.payload);
-
-    for (const c of innerCandidates) {
-      try {
-        const inner = JSON.parse(c);
-        if (inner && inner.data) return inner;
-        if (inner && (inner.transactions || inner.settings || inner.debt)) {
-          return {
-            app: inner.app || APP_NAME,
-            version: inner.version || APP_VERSION,
-            exportedAt: inner.exportedAt || new Date().toISOString(),
-            deviceId: inner.deviceId || '',
-            data: {
-              transactions: Array.isArray(inner.transactions) ? inner.transactions : [],
-              settings: inner.settings || {},
-              debt: inner.debt || { borrows: (inner.borrows || []), repays: (inner.repays || []) }
-            }
-          };
-        }
-      } catch (e) { /* ignore */ }
-    }
-
-    // If parsed already is the top-level payload (transactions/settings at top), normalize
-    if (parsed.transactions || parsed.settings || parsed.debt || parsed.borrows || parsed.repays) {
-      return {
-        app: parsed.app || APP_NAME,
-        version: parsed.version || APP_VERSION,
-        exportedAt: parsed.exportedAt || new Date().toISOString(),
-        deviceId: parsed.deviceId || '',
-        data: {
-          transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
-          settings: parsed.settings || {},
-          debt: {
-            borrows: Array.isArray(parsed.debt?.borrows) ? parsed.debt.borrows : (Array.isArray(parsed.borrows) ? parsed.borrows : []),
-            repays: Array.isArray(parsed.debt?.repays) ? parsed.debt.repays : (Array.isArray(parsed.repays) ? parsed.repays : [])
-          }
-        }
-      };
-    }
 
     throw new Error('Cloud snapshot has unexpected shape');
   } catch (err) {
@@ -392,7 +473,12 @@ export async function restoreFromCloud(appsScriptUrl, opts = {}) {
   if (!appsScriptUrl) throw new Error('appsScriptUrl required');
   const payload = await fetchLatestFromCloud(appsScriptUrl, { signal: opts.signal });
   if (!payload || !payload.data) throw new Error('No snapshot data found in cloud');
-  const confirmFn = opts.confirmFn || (msg => Promise.resolve(window.confirm(msg)));
+  const confirmFn = opts.confirmFn || (msg => {
+    if (typeof window !== 'undefined' && typeof window.appConfirmDialog === 'function') {
+      return window.appConfirmDialog(msg, { title: 'Confirm Restore', okText: 'Restore' });
+    }
+    return Promise.resolve(window.confirm(msg));
+  });
   const message = `Restore will overwrite local data with snapshot exported at ${payload.exportedAt} from device ${payload.deviceId}. Proceed?`;
   const ok = await confirmFn(message);
   if (!ok) throw new Error('User cancelled restore');
@@ -412,7 +498,9 @@ if (typeof window !== 'undefined') {
   window.__uploadToCloud = async (url) => uploadToCloud(url);
   window.__cloudFetchLatest = async (url) => fetchLatestFromCloud(url);
   window.__restoreFromCloud = async (url) => restoreFromCloud(url, { confirmFn: async (msg) => {
-    // default confirm when called from console (bypass UI modal)
+    if (typeof window.appConfirmDialog === 'function') {
+      return window.appConfirmDialog(msg, { title: 'Confirm Restore', okText: 'Restore' });
+    }
     return window.confirm(msg);
   }});
   window.__cloudFetchRawLatest = async (url) => {
@@ -448,3 +536,4 @@ if (typeof window !== 'undefined') {
     }
   };
 }
+

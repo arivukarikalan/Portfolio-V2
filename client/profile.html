@@ -1,0 +1,366 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Sign in / Create Profile</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link href="../CSS/ui.css" rel="stylesheet">
+  <link href="../CSS/ui-improvements.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body.profile-auth-page {
+      min-height: 100svh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background:
+        radial-gradient(1200px 480px at 50% -20%, rgba(15, 111, 255, 0.08), transparent 60%),
+        #f3f7fb;
+    }
+    .auth-shell {
+      width: min(100%, 560px);
+      margin: 0 auto;
+    }
+    .auth-card {
+      border-radius: 14px;
+      border: 1px solid var(--border, #dbe4ef);
+      box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
+    }
+    @media (max-width: 480px) {
+      body.profile-auth-page { padding: 12px; }
+      .auth-shell { width: 100%; }
+    }
+    .auth-progress-banner {
+      position: fixed;
+      top: calc(79px + env(safe-area-inset-top, 0px));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 12000;
+      background: #e8f1ff;
+      color: #0f3f94;
+      border: 1px solid #bfd6ff;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+      display: none;
+      width: min(92vw, 420px);
+      text-align: center;
+    }
+  </style>
+
+  <!-- Ensure shared Apps Script URL is available before the module loads.
+       Replace the URL below with your deployed web-app /exec URL if different. -->
+  <script>
+    window.APP_APPS_SCRIPT_URL = window.APP_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbxRX-y7kiDT4GqN18F6-e46pibw_gbJxmOHlglm4YCoUMjYdhVt-vbBj2fQgGkcQr8S/exec';
+  </script>
+</head>
+<body class="profile-auth-page">
+  <div id="auth-progress" class="auth-progress-banner">Please wait, verifying credentials...</div>
+  <div class="auth-shell">
+    <div class="card shadow-sm auth-card">
+      <div class="card-body">
+        <h2 class="card-title mb-3">Sign in or Create Profile</h2>
+
+        <ul class="nav nav-tabs" id="tabNav">
+          <li class="nav-item"><a class="nav-link active" id="tab-login" href="#">Login</a></li>
+          <li class="nav-item"><a class="nav-link" id="tab-create" href="#">Create</a></li>
+        </ul>
+
+        <div id="login-section" class="mt-3">
+          <div class="mb-2">
+            <label class="form-label small">User ID</label>
+            <input id="login-userid" class="form-control" placeholder="your-userid">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">Password</label>
+            <div class="input-group">
+              <input
+                id="login-key"
+                class="form-control"
+                type="password"
+                placeholder="Enter password"
+                autocomplete="new-password"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck="false"
+              >
+              <button id="login-toggle-eye" class="btn btn-outline-secondary" type="button" title="Show/Hide password" aria-label="Show/Hide password">
+                <i class="bi bi-eye"></i>
+              </button>
+              <button id="login-paste" class="btn btn-outline-secondary">Paste</button>
+            </div>
+          </div>
+
+          <!-- Note: using centralized cloud endpoint by default -->
+          <div class="mb-2">
+            <small class="text-muted">This app uses a shared cloud backup endpoint by default. No per-user Apps Script deployment required.</small>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button id="login-btn" class="btn btn-primary">Login</button>
+          </div>
+        </div>
+
+        <div id="create-section" class="mt-3" style="display:none;">
+          <div class="mb-2">
+            <label class="form-label small">User ID (choose a unique id)</label>
+            <input id="create-userid" class="form-control" placeholder="example: alice123">
+            <div class="form-text text-muted">Allowed: letters, numbers, ., _, - (3-64 chars). This will be your login id.</div>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label small">Display name</label>
+            <input id="create-name" class="form-control" placeholder="Your display name">
+          </div>
+
+          <div class="d-flex gap-2">
+            <button id="create-btn" class="btn btn-success">Create Profile</button>
+            <button id="create-cancel" class="btn btn-link">Back to Login</button>
+          </div>
+
+          <div id="created-info" class="mt-3" style="display:none;">
+            <div class="mb-2">
+              <label class="form-label small">User ID</label>
+              <input id="created-userid" class="form-control" readonly>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small">Password (save this now)</label>
+              <div class="input-group">
+                <textarea id="recovery-key" class="form-control" rows="2" readonly></textarea>
+                <button id="copy-created-key" class="btn btn-outline-secondary">Copy</button>
+              </div>
+              <div class="form-text text-danger">This key is shown only once. Save it securely; it cannot be recovered.</div>
+            </div>
+            <div class="mt-2">
+              <button id="recovery-gotit" class="btn btn-primary">I saved it - Continue to app</button>
+            </div>
+          </div>
+        </div>
+
+        <hr class="my-3">
+        <div id="status" class="small text-muted" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    async function purgePortfolioDbIfLoggedOut() {
+      try {
+        const uid = localStorage.getItem('activeUserId');
+        const pending = localStorage.getItem('pendingDbPurge');
+        if (uid && !pending) return;
+
+        // Best-effort close of any leaked handle from previous page context.
+        try {
+          if (window.db && typeof window.db.close === 'function') window.db.close();
+        } catch (e) {}
+
+        for (let i = 0; i < 12; i += 1) {
+          const ok = await new Promise(resolve => {
+            try {
+              const req = indexedDB.deleteDatabase('PortfolioDB');
+              req.onsuccess = () => resolve(true);
+              req.onerror = () => resolve(false);
+              req.onblocked = () => resolve(false);
+            } catch (e) {
+              resolve(false);
+            }
+          });
+          if (ok) {
+            try { localStorage.removeItem('pendingDbPurge'); } catch (e) {}
+            break;
+          }
+          await new Promise(resolve => setTimeout(resolve, 250));
+        }
+      } catch (e) {
+        // Non-fatal cleanup path.
+      }
+    }
+
+    const statusEl = document.getElementById('status');
+    const authProgressEl = document.getElementById('auth-progress');
+    function showAuthProgress(text) {
+      if (!authProgressEl) return;
+      authProgressEl.textContent = text || 'Please wait, verifying credentials...';
+      authProgressEl.style.display = 'block';
+    }
+    function hideAuthProgress() {
+      if (!authProgressEl) return;
+      authProgressEl.style.display = 'none';
+    }
+    function showTopToast(message, type = 'info', durationMs) {
+      const text = String(message || '').trim();
+      if (!text) return;
+
+      let host = document.getElementById('toastHost');
+      if (!host) {
+        host = document.createElement('div');
+        host.id = 'toastHost';
+        host.className = 'toast-host';
+        document.body.appendChild(host);
+      }
+
+      const iconMap = {
+        success: 'bi-check2-circle',
+        error: 'bi-exclamation-octagon',
+        info: 'bi-info-circle'
+      };
+      const iconClass = iconMap[type] || iconMap.info;
+      const life = Number.isFinite(Number(durationMs))
+        ? Number(durationMs)
+        : (type === 'error' ? 4200 : 2600);
+
+      const toast = document.createElement('div');
+      toast.className = `app-toast ${type}`;
+      toast.innerHTML = `
+        <div class="app-toast-inner">
+          <span class="app-toast-icon"><i class="bi ${iconClass}"></i></span>
+          <span class="app-toast-text">${text}</span>
+        </div>
+        <span class="app-toast-progress"></span>
+      `;
+      host.appendChild(toast);
+      while (host.children.length > 3) host.removeChild(host.firstChild);
+      setTimeout(() => {
+        toast.classList.add('hide');
+        setTimeout(() => toast.remove(), 220);
+      }, life);
+    }
+
+    function status(m, err = false, type) {
+      const t = type || (err ? 'error' : 'info');
+      showTopToast(m, t);
+      statusEl.textContent = m;
+      statusEl.style.color = err ? '#a33' : '#444';
+      console.log(m);
+    }
+
+    // Tab switching
+    document.getElementById('tab-login').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('login-section').style.display='block'; document.getElementById('create-section').style.display='none'; document.getElementById('tab-login').classList.add('active'); document.getElementById('tab-create').classList.remove('active'); });
+    document.getElementById('tab-create').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('login-section').style.display='none'; document.getElementById('create-section').style.display='block'; document.getElementById('tab-create').classList.add('active'); document.getElementById('tab-login').classList.remove('active'); });
+
+    (async function() {
+      try {
+        await purgePortfolioDbIfLoggedOut();
+
+        const mod = await import('./profileManager.js');
+        const { createProfile, authenticateAndStore } = mod;
+
+        // LOGIN: paste helper
+        document.getElementById('login-paste').addEventListener('click', async () => {
+          try {
+            const txt = await navigator.clipboard.readText();
+            if (txt) { document.getElementById('login-key').value = txt; status('Pasted from clipboard'); } else status('Clipboard empty', true);
+          } catch (e) { status('Paste failed: ' + (e.message||e), true); }
+        });
+
+        // LOGIN: show/hide password
+        document.getElementById('login-toggle-eye').addEventListener('click', () => {
+          const input = document.getElementById('login-key');
+          const icon = document.querySelector('#login-toggle-eye i');
+          if (!input) return;
+          const show = input.type === 'password';
+          input.type = show ? 'text' : 'password';
+          if (icon) {
+            icon.classList.remove('bi-eye', 'bi-eye-slash');
+            icon.classList.add(show ? 'bi-eye-slash' : 'bi-eye');
+          }
+        });
+
+        // LOGIN action - only userId & recoveryKey required now
+        document.getElementById('login-btn').addEventListener('click', async () => {
+          try {
+            showAuthProgress('Please wait, verifying credentials...');
+            status('Authenticating...');
+            const userId = document.getElementById('login-userid').value.trim();
+            const key = document.getElementById('login-key').value.trim();
+            if (!userId || !key) { status('Provide userId and password', true); hideAuthProgress(); return; }
+
+            const res = await authenticateAndStore(userId, key);
+
+            if (res.ok) {
+              status('Login successful. Redirecting to app...', false, 'success');
+              setTimeout(() => window.location.href = '../index.html', 500);
+            } else if (res.notFound) {
+              status('No cloud snapshot found for this userId. Create a profile first.', true);
+            } else if (res.reason === 'user_mismatch') {
+              status(`Cloud returned snapshot for "${res.payloadUserId}". Check exact userId spelling/case.`, true);
+            } else if (res.reason === 'mismatch') {
+              status('Password mismatch. Check your password and try again.', true);
+            } else {
+              status('Authentication failed. See console for details.', true);
+              console.log('authenticateAndStore result', res);
+            }
+            hideAuthProgress();
+          } catch (e) {
+            console.error('Auth error', e);
+            status('Authentication error: ' + (e.message||e), true);
+            hideAuthProgress();
+          }
+        });
+
+        // Create flow
+        document.getElementById('create-btn').addEventListener('click', async () => {
+          try {
+            status('Creating profile...');
+            const name = document.getElementById('create-name').value.trim();
+            const userId = document.getElementById('create-userid').value.trim();
+            if (!name) { status('Enter a display name', true); return; }
+            if (!userId) { status('Enter a User ID (unique)', true); return; }
+
+            const res = await createProfile(name, userId);
+            if (!res || !res.ok) {
+              // surface cloud/user id errors
+              const msg = (res && (res.reason || res.message)) ? (res.reason + ': ' + (res.message || '')) : 'Create failed';
+              status(msg, true);
+              return;
+            }
+
+            // Show recovery key once (do NOT persist)
+            document.getElementById('created-userid').value = res.userId;
+            document.getElementById('recovery-key').value = res.recoveryKey;
+            document.getElementById('created-info').style.display = 'block';
+            status('Profile created. COPY and SAVE the password now. It will NOT be stored locally.', false, 'success');
+          } catch (e) {
+            console.error('createProfile error', e);
+            status('Create failed: ' + (e.message || e), true);
+          }
+        });
+
+        document.getElementById('copy-created-key').addEventListener('click', async () => {
+          try {
+            const txt = document.getElementById('recovery-key').value;
+            if (!txt) { status('No key to copy', true); return; }
+            await navigator.clipboard.writeText(txt);
+            status('Password copied to clipboard (transient).', false, 'success');
+          } catch (e) {
+            status('Copy failed: ' + (e.message||e), true);
+          }
+        });
+
+        document.getElementById('recovery-gotit').addEventListener('click', () => {
+          // After user acknowledges, continue to app (activeUserId already set by createProfile)
+          status('Saved. Redirecting to app...');
+          setTimeout(() => window.location.href = '../index.html', 500);
+        });
+
+        document.getElementById('create-cancel').addEventListener('click', (e) => {
+          e.preventDefault();
+          document.getElementById('tab-login').click();
+        });
+
+              } catch (importErr) {
+        console.error('Failed to load profileManager module', importErr);
+        status('Internal error loading profile module. See console for details.', true);
+      }
+    })();
+  </script>
+</body>
+</html>
+
+

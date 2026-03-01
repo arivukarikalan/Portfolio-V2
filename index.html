@@ -24,13 +24,28 @@
 
 <body class="page-home">
 
+<!-- Quick redirect to profile if no active user ID -->
+<script>
+  (function() {
+    try {
+      const raw = localStorage.getItem('activeUserId');
+      if (!raw) {
+        window.location.href = './client/profile.html';
+        return;
+      }
+    } catch (e) {
+      window.location.href = './client/profile.html';
+    }
+  })();
+</script>
+
 <!-- =====================================================
      FEATURE: Header Bar
      - Page title
      - Light / Dark mode toggle
      ===================================================== -->
      <div class="app-header">
-      <div class="app-title">Portfolio</div>
+      <div class="app-title" id="appTitle">Portfolio</div>
       <div class="d-flex gap-2">
         <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
           <i class="bi bi-moon-stars"></i>
@@ -44,8 +59,34 @@
         <a href="Settings.html" class="btn btn-sm btn-light" title="Settings">
           <i class="bi bi-gear"></i>
         </a>
+        <!-- Sign out -->
+        <button onclick="signOut()" class="btn btn-sm btn-light" title="Sign out"><i class="bi bi-box-arrow-right"></i></button>
       </div>
     </div>
+
+<!-- Set header title to profile name when present -->
+<script>
+  (function() {
+    try {
+      const uid = localStorage.getItem('activeUserId');
+      if (uid) {
+        const el = document.getElementById('appTitle');
+        if (el) el.textContent = uid;
+      }
+    } catch (e) {}
+  })();
+
+  // Sign out: use centralized logout if available
+  function signOut() {
+    if (typeof window !== 'undefined' && typeof window.appLogout === 'function') {
+      window.appLogout();
+      return;
+    }
+    import('./client/profileManager.js').then(mod => mod.logout()).catch(() => {
+      window.location.href = './client/profile.html';
+    });
+  }
+</script>
 
 <!-- =====================================================
      FEATURE: Dashboard Content
@@ -197,6 +238,7 @@
      FEATURE: Script Includes
      ===================================================== -->
 <script src="JS/Db.js"></script>
+<script src="JS/App.js"></script>
 <script src="JS/Settings.js"></script>
 <script src="JS/Transactions.js"></script>
 <script src="JS/LossReport.js"></script>
@@ -223,15 +265,18 @@
     document.documentElement.classList.remove('size-small','size-medium','size-large');
     document.documentElement.classList.add('size-' + s);
   })();
+</script>
 
-  openDB()
-    .then(seedSettings)
-    .then(() => {
-      // existing dashboard loader
-      loadDashboard?.();
-      // load total historical loss for home stat
-      if (typeof loadTotalLoss === "function") loadTotalLoss();
-    });
+<script>
+  // Explicit app bootstrap after scripts are loaded.
+  (function(){
+    try {
+      const uid = localStorage.getItem('activeUserId');
+      if (uid && typeof window.startApp === 'function') {
+        window.startApp().catch(e => console.error('startApp error', e));
+      }
+    } catch (e) {}
+  })();
 </script>
 
 <script>
@@ -275,3 +320,4 @@
 
 </body>
 </html>
+

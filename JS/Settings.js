@@ -5,15 +5,25 @@
    ========================================================= */
 
 /* ================= UX HELPERS ================= */
-function showToast(message, type = "success") {
+let LAST_TOAST_SIG = "";
+let LAST_TOAST_AT = 0;
+
+function showToast(message, type = "success", durationMs) {
   const text = (message || "").trim();
   if (!text) return;
+  const sig = `${type}::${text}`;
+  const now = Date.now();
+  if (sig === LAST_TOAST_SIG && now - LAST_TOAST_AT < 1000) return;
+  LAST_TOAST_SIG = sig;
+  LAST_TOAST_AT = now;
 
   let host = document.getElementById("toastHost");
   if (!host) {
     host = document.createElement("div");
     host.id = "toastHost";
     host.className = "toast-host";
+    host.setAttribute("aria-live", "polite");
+    host.setAttribute("aria-atomic", "true");
     document.body.appendChild(host);
   }
 
@@ -23,9 +33,13 @@ function showToast(message, type = "success") {
     info: "bi-info-circle"
   };
   const iconClass = iconMap[type] || iconMap.info;
+  const life = Number.isFinite(Number(durationMs))
+    ? Number(durationMs)
+    : (type === "error" ? 4200 : (type === "info" ? 3000 : 2400));
 
   const toast = document.createElement("div");
   toast.className = `app-toast ${type}`;
+  toast.setAttribute("role", type === "error" ? "alert" : "status");
   toast.innerHTML = `
     <div class="app-toast-inner">
       <span class="app-toast-icon"><i class="bi ${iconClass}"></i></span>
@@ -35,10 +49,187 @@ function showToast(message, type = "success") {
   `;
   host.appendChild(toast);
 
+  // Keep stack compact on mobile.
+  while (host.children.length > 3) {
+    host.removeChild(host.firstChild);
+  }
+
+  toast.addEventListener("click", () => {
+    toast.classList.add("hide");
+    setTimeout(() => toast.remove(), 180);
+  });
+
   setTimeout(() => {
     toast.classList.add("hide");
     setTimeout(() => toast.remove(), 220);
-  }, 2200);
+  }, life);
+}
+if (typeof window !== "undefined") window.showToast = showToast;
+
+function appShowLoading(message = "Please wait...") {
+  let el = document.getElementById("appLoadingOverlay");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "appLoadingOverlay";
+    el.className = "app-loading-overlay";
+    el.innerHTML = `
+      <div class="app-loading-card">
+        <div class="app-loading-spinner" aria-hidden="true"></div>
+        <div class="app-loading-text" id="appLoadingText"></div>
+      </div>
+    `;
+    document.body.appendChild(el);
+  }
+  const textEl = document.getElementById("appLoadingText");
+  if (textEl) textEl.textContent = String(message || "Please wait...");
+  el.style.display = "flex";
+}
+
+function appHideLoading() {
+  const el = document.getElementById("appLoadingOverlay");
+  if (el) el.style.display = "none";
+}
+
+function appAlertDialog(message, opts = {}) {
+  return new Promise(resolve => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "app-dialog-backdrop";
+    backdrop.innerHTML = `
+      <div class="app-dialog-card" role="dialog" aria-modal="true">
+        <div class="app-dialog-title">${opts.title || "Notice"}</div>
+        <div class="app-dialog-message"></div>
+        <div class="app-dialog-actions">
+          <button type="button" class="btn btn-primary app-dialog-ok">${opts.okText || "OK"}</button>
+        </div>
+      </div>
+    `;
+    const messageEl = backdrop.querySelector(".app-dialog-message");
+    if (messageEl) messageEl.textContent = String(message || "");
+    const okBtn = backdrop.querySelector(".app-dialog-ok");
+    okBtn?.addEventListener("click", () => {
+      backdrop.remove();
+      resolve(true);
+    });
+    document.body.appendChild(backdrop);
+    okBtn?.focus();
+  });
+}
+
+function appConfirmDialog(message, opts = {}) {
+  return new Promise(resolve => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "app-dialog-backdrop";
+    backdrop.innerHTML = `
+      <div class="app-dialog-card" role="dialog" aria-modal="true">
+        <div class="app-dialog-title">${opts.title || "Confirm"}</div>
+        <div class="app-dialog-message"></div>
+        <div class="app-dialog-actions">
+          <button type="button" class="btn btn-outline-secondary app-dialog-cancel">${opts.cancelText || "Cancel"}</button>
+          <button type="button" class="btn btn-primary app-dialog-ok">${opts.okText || "Confirm"}</button>
+        </div>
+      </div>
+    `;
+    const messageEl = backdrop.querySelector(".app-dialog-message");
+    if (messageEl) messageEl.textContent = String(message || "");
+    const okBtn = backdrop.querySelector(".app-dialog-ok");
+    const cancelBtn = backdrop.querySelector(".app-dialog-cancel");
+    const close = (result) => {
+      backdrop.remove();
+      resolve(result);
+    };
+    okBtn?.addEventListener("click", () => close(true));
+    cancelBtn?.addEventListener("click", () => close(false));
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) close(false);
+    });
+    document.body.appendChild(backdrop);
+    okBtn?.focus();
+  });
+}
+
+function appPromptDialog(opts = {}) {
+  return new Promise(resolve => {
+    const title = opts.title || "Input";
+    const message = opts.message || "";
+    const placeholder = opts.placeholder || "";
+    const defaultValue = opts.defaultValue || "";
+    const required = !!opts.required;
+    const minLength = Number(opts.minLength || 0);
+    const inputType = opts.inputType || "text";
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "app-dialog-backdrop";
+    backdrop.innerHTML = `
+      <div class="app-dialog-card" role="dialog" aria-modal="true">
+        <div class="app-dialog-title">${title}</div>
+        <div class="app-dialog-message"></div>
+        <input class="form-control app-dialog-input" />
+        <div class="app-dialog-error" style="display:none;"></div>
+        <div class="app-dialog-actions">
+          <button type="button" class="btn btn-outline-secondary app-dialog-cancel">Cancel</button>
+          <button type="button" class="btn btn-primary app-dialog-ok">Continue</button>
+        </div>
+      </div>
+    `;
+    const messageEl = backdrop.querySelector(".app-dialog-message");
+    const input = backdrop.querySelector(".app-dialog-input");
+    const errorEl = backdrop.querySelector(".app-dialog-error");
+    const okBtn = backdrop.querySelector(".app-dialog-ok");
+    const cancelBtn = backdrop.querySelector(".app-dialog-cancel");
+    if (messageEl) messageEl.textContent = String(message);
+    if (input) {
+      input.type = inputType;
+      input.placeholder = placeholder;
+      input.value = defaultValue;
+      input.autocomplete = "off";
+      input.autocapitalize = "off";
+      input.autocorrect = "off";
+      input.spellcheck = false;
+    }
+
+    const close = (result) => {
+      backdrop.remove();
+      resolve(result);
+    };
+
+    const submit = () => {
+      const val = String(input?.value || "").trim();
+      if (required && !val) {
+        if (errorEl) {
+          errorEl.textContent = "This field is required.";
+          errorEl.style.display = "block";
+        }
+        return;
+      }
+      if (minLength > 0 && val && val.length < minLength) {
+        if (errorEl) {
+          errorEl.textContent = `Minimum ${minLength} characters required.`;
+          errorEl.style.display = "block";
+        }
+        return;
+      }
+      close(val || "");
+    };
+
+    okBtn?.addEventListener("click", submit);
+    cancelBtn?.addEventListener("click", () => close(null));
+    input?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submit();
+    });
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) close(null);
+    });
+    document.body.appendChild(backdrop);
+    input?.focus();
+  });
+}
+
+if (typeof window !== "undefined") {
+  window.appShowLoading = appShowLoading;
+  window.appHideLoading = appHideLoading;
+  window.appAlertDialog = appAlertDialog;
+  window.appConfirmDialog = appConfirmDialog;
+  window.appPromptDialog = appPromptDialog;
 }
 
 function setupBottomNav() {
@@ -142,9 +333,236 @@ function maybeShowWeeklyBackupReminder() {
   }
 }
 
+function getAppsScriptUrl() {
+  const fallback = "https://script.google.com/macros/s/AKfycbxRX-y7kiDT4GqN18F6-e46pibw_gbJxmOHlglm4YCoUMjYdhVt-vbBj2fQgGkcQr8S/exec";
+  return (typeof window !== "undefined" && window.APP_APPS_SCRIPT_URL) ? window.APP_APPS_SCRIPT_URL : fallback;
+}
+
+async function fetchCloudRowsForActiveUser() {
+  const userId = localStorage.getItem("activeUserId");
+  if (!userId) return { userId: null, rows: [] };
+
+  const url = new URL(getAppsScriptUrl());
+  url.searchParams.set("mode", "all");
+  url.searchParams.set("userId", userId);
+
+  const res = await fetch(url.toString(), { method: "GET" });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Cloud fetch failed: ${res.status} ${res.statusText} ${txt}`);
+  }
+
+  const text = await res.text();
+  let parsed = null;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    const m = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    if (m) {
+      try { parsed = JSON.parse(m[0]); } catch (e2) { parsed = null; }
+    }
+  }
+  const rows = Array.isArray(parsed?.rows) ? parsed.rows : [];
+  const exactRows = rows
+    .map(r => {
+      let normalized = {
+        ...r,
+        userId: r?.userId || "",
+        recoveryKeyHash: r?.recoveryKeyHash || "",
+        eventType: r?.eventType || "",
+        jsonPayload: r?.jsonPayload || null
+      };
+      if (normalized.jsonPayload) {
+        try {
+          const payload = JSON.parse(String(normalized.jsonPayload));
+          if (!normalized.userId) normalized.userId = payload?.userId || "";
+          if (!normalized.recoveryKeyHash) normalized.recoveryKeyHash = payload?.recoveryKeyHash || payload?.recovery_key || "";
+          if (!normalized.eventType) normalized.eventType = payload?.eventType || "";
+        } catch (e) {}
+      }
+      return normalized;
+    })
+    .filter(r => String(r?.userId || "").trim() === String(userId).trim());
+  return { userId, rows: exactRows };
+}
+
+function upsertCloudStatusModal(contentHtml) {
+  let modal = document.getElementById("cloudStatusModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "cloudStatusModal";
+    modal.className = "cloud-status-modal";
+    modal.innerHTML = `
+      <div id="cloudStatusCard" class="cloud-status-card">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0"><i class="bi bi-cloud-check"></i> Cloud Status</h5>
+          <button id="cloudStatusClose" type="button" class="btn btn-sm btn-outline-secondary">Close</button>
+        </div>
+        <div id="cloudStatusBody"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.style.display = "none";
+    });
+    const closeBtn = document.getElementById("cloudStatusClose");
+    if (closeBtn) closeBtn.addEventListener("click", () => { modal.style.display = "none"; });
+  }
+  const body = document.getElementById("cloudStatusBody");
+  if (body) body.innerHTML = contentHtml;
+  modal.style.display = "block";
+}
+
+function formatIso(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString();
+}
+
+function addCloudHeaderButton() {
+  const uid = localStorage.getItem("activeUserId");
+  if (!uid) return;
+  const host = document.querySelector(".app-header .d-flex");
+  if (!host) return;
+  if (document.getElementById("cloud-status-btn")) return;
+
+  const btn = document.createElement("button");
+  btn.id = "cloud-status-btn";
+  btn.type = "button";
+  btn.className = "btn btn-sm btn-light";
+  btn.title = "Cloud status";
+  btn.innerHTML = '<i class="bi bi-cloud-check"></i>';
+
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    upsertCloudStatusModal('<div class="text-muted">Loading cloud details...</div>');
+    try {
+      const { userId, rows } = await fetchCloudRowsForActiveUser();
+      if (!userId) {
+        upsertCloudStatusModal('<div class="text-danger">No active user found.</div>');
+        return;
+      }
+      if (!rows.length) {
+        upsertCloudStatusModal(`<div><div><strong>User:</strong> ${userId}</div><div class="text-danger mt-2">No cloud snapshots found for this user.</div></div>`);
+        return;
+      }
+
+      rows.sort((a, b) => new Date(a.exportedAt || 0) - new Date(b.exportedAt || 0));
+      const latest = rows[rows.length - 1] || {};
+      const latestHash = String(latest.recoveryKeyHash || "").trim();
+      let txCount = "-";
+      try {
+        const payload = latest.jsonPayload ? JSON.parse(String(latest.jsonPayload)) : null;
+        txCount = Array.isArray(payload?.data?.transactions) ? payload.data.transactions.length : "-";
+      } catch (e) {}
+
+      const html = `
+        <div><strong>User:</strong> ${userId}</div>
+        <div><strong>Total snapshots:</strong> ${rows.length}</div>
+        <div><strong>Latest event:</strong> ${latest.eventType || "-"}</div>
+        <div><strong>Latest export:</strong> ${formatIso(latest.exportedAt)}</div>
+        <div><strong>Latest tx count:</strong> ${txCount}</div>
+        <div><strong>Recovery hash:</strong> ${latestHash ? "Present" : '<span class="text-danger">Missing</span>'}</div>
+      `;
+      upsertCloudStatusModal(html);
+    } catch (err) {
+      upsertCloudStatusModal(`<div class="text-danger">Failed to load cloud status: ${err.message || err}</div>`);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  host.prepend(btn);
+}
+
+function wireRotatePasskeyButton() {
+  const btn = document.getElementById("rotate-passkey-btn");
+  if (!btn || btn.dataset.wired === "1") return;
+  btn.dataset.wired = "1";
+
+  btn.addEventListener("click", async () => {
+    const userId = String(localStorage.getItem("activeUserId") || "").trim();
+    if (!userId) {
+      showToast("No active user found. Login again.", "error");
+      return;
+    }
+
+    const current = await appPromptDialog({
+      title: "Change Password",
+      message: "Enter current password to verify identity.",
+      placeholder: "Current password",
+      inputType: "password",
+      required: true,
+      minLength: 8
+    });
+    if (current === null) return;
+    const currentKey = String(current || "").trim();
+    if (!currentKey) {
+      showToast("Current password is required", "error");
+      return;
+    }
+
+    const next = await appPromptDialog({
+      title: "New Password",
+      message: "Enter new password (leave empty to auto-generate).",
+      placeholder: "New password",
+      inputType: "password",
+      required: false,
+      minLength: 8
+    });
+    if (next === null) return;
+    const nextKey = String(next || "").trim();
+
+    btn.disabled = true;
+    appShowLoading("Updating password...");
+    try {
+      const mod = await import("../client/profileManager.js");
+      const res = await mod.rotateRecoveryKey(currentKey, nextKey || undefined);
+      if (!res || !res.ok) throw new Error("Passkey update failed");
+
+      const finalKey = String(res.recoveryKey || "");
+      if (!finalKey) throw new Error("New password not generated");
+
+      const copied = await navigator.clipboard.writeText(finalKey).then(() => true).catch(() => false);
+      const msg = copied
+        ? "Password changed and copied to clipboard. Save it now."
+        : "Password changed. Copy and save the new password now.";
+      showToast(msg, "success");
+      appHideLoading();
+      await appAlertDialog("New Password (save this now):\n\n" + finalKey, { title: "Password Updated", okText: "Done" });
+    } catch (err) {
+      showToast("Change key failed: " + (err.message || err), "error");
+      console.error("rotate passkey error", err);
+    } finally {
+      appHideLoading();
+      btn.disabled = false;
+    }
+  });
+}
+
 function initSharedUi() {
   setupBottomNav();
   maybeShowWeeklyBackupReminder();
+  addCloudHeaderButton();
+  wireRotatePasskeyButton();
+  try {
+    const raw = localStorage.getItem("lastCloudPruneDebug");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      console.group("[Prune Debug] Last Logout");
+      console.log(parsed);
+      console.groupEnd();
+      const hasNewBackend = !!(parsed && parsed.scriptTag && parsed.prune);
+      if (hasNewBackend) {
+        showToast("Last prune debug is available in console", "info");
+      } else {
+        showToast("Old cloud deployment detected. Check console for Apps Script URL and redeploy.", "error");
+      }
+      localStorage.removeItem("lastCloudPruneDebug");
+    }
+  } catch (e) {}
 }
 
 if (document.readyState === "loading") {
@@ -256,261 +674,18 @@ function getSettings(cb) {
 
 /* ---------------- EXPORT ---------------- */
 function exportCSV() {
-  if (!db) {
-    showToast("Database still loading. Please try again.", "info");
-    return;
-  }
-
-  Promise.all([
-    getAllFromStore("settings"),
-    getAllFromStore("transactions"),
-    getAllFromStoreSafe("debt_borrows"),
-    getAllFromStoreSafe("debt_repays")
-  ]).then(([settings, transactions, debtBorrows, debtRepays]) => {
-
-    let csv = "#PORTFOLIO_TRACKER_EXPORT_V1\n\n";
-
-    /* SETTINGS */
-    csv += "#SETTINGS\n";
-    csv += "id,brokerageBuyPct,brokerageSellPct,dpCharge,portfolioSize,maxAllocationPct,avgLevel1Pct,avgLevel2Pct,fdRatePct,inflationRatePct,sellTargetPct,stopLossPct,minHoldDaysTrim\n";
-
-    const s = settings[0] || {
-      id: 1,
-      brokerageBuyPct: 0.15,
-      brokerageSellPct: 0.15,
-      dpCharge: 50,
-      portfolioSize: 100000,
-      maxAllocationPct: 25,
-      avgLevel1Pct: 7,
-      avgLevel2Pct: 12,
-      fdRatePct: 6.5,
-      inflationRatePct: 6,
-      sellTargetPct: 15,
-      stopLossPct: 8,
-      minHoldDaysTrim: 20
-    };
-    csv += `${csvJoin([s.id, s.brokerageBuyPct, s.brokerageSellPct, s.dpCharge, s.portfolioSize, s.maxAllocationPct, s.avgLevel1Pct, s.avgLevel2Pct, s.fdRatePct, s.inflationRatePct, s.sellTargetPct ?? 15, s.stopLossPct ?? 8, s.minHoldDaysTrim ?? 20])}\n\n`;
-
-    /* TRANSACTIONS */
-    csv += "#TRANSACTIONS\n";
-    csv += "id,date,stock,type,qty,price,brokerage,dpCharge,reason,note\n";
-
-    transactions.forEach(t => {
-      csv += `${csvJoin([t.id, t.date, t.stock, t.type, t.qty, t.price, t.brokerage, t.dpCharge, t.reason || "", t.note || ""])}\n`;
-    });
-
-    csv += "\n#DEBT_BORROWS\n";
-    csv += "id,date,lender,category,amount,interestPct,note,createdAt\n";
-    debtBorrows.forEach(b => {
-      csv += `${csvJoin([b.id, b.date, b.lender, b.category, b.amount, b.interestPct, b.note, b.createdAt])}\n`;
-    });
-
-    csv += "\n#DEBT_REPAYS\n";
-    csv += "id,date,lender,amount,note,createdAt\n";
-    debtRepays.forEach(r => {
-      csv += `${csvJoin([r.id, r.date, r.lender, r.amount, r.note, r.createdAt])}\n`;
-    });
-
-    downloadCSV(csv);
-    markBackupDone();
-    showToast("CSV exported successfully");
-  });
-}
-
-/* ---------------- HELPERS ---------------- */
-function getAllFromStore(storeName) {
-  return new Promise(resolve => {
-    db.transaction(storeName, "readonly")
-      .objectStore(storeName)
-      .getAll().onsuccess = e => resolve(e.target.result);
-  });
-}
-
-function getAllFromStoreSafe(storeName) {
-  return new Promise(resolve => {
-    try {
-      db.transaction(storeName, "readonly")
-        .objectStore(storeName)
-        .getAll().onsuccess = e => resolve(e.target.result || []);
-    } catch (_) {
-      resolve([]);
-    }
-  });
-}
-
-function csvCell(value) {
-  const v = value == null ? "" : String(value);
-  if (/[",\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
-  return v;
-}
-
-function csvJoin(values) {
-  return values.map(csvCell).join(",");
-}
-
-function parseCsvRow(line) {
-  const out = [];
-  let cur = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (ch === "," && !inQuotes) {
-      out.push(cur);
-      cur = "";
-    } else {
-      cur += ch;
-    }
-  }
-  out.push(cur);
-  return out;
-}
-
-function downloadCSV(content) {
-  const blob = new Blob([content], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "portfolio_backup.csv";
-  a.click();
-
-  URL.revokeObjectURL(url);
+  // Previously exported CSV from IndexedDB. Now replaced by cloud backup.
+  appAlertDialog('Export to CSV is deprecated. Use Cloud Backup (Sync to Cloud) in the Data Management section to back up your profile to Google Sheets.');
+  // If you still need a local CSV export for offline purposes, re-enable the legacy exporter here.
 }
 
 /* ---------------- IMPORT ---------------- */
 function importCSV() {
-  if (!db) {
-    showToast("Database still loading. Please try again.", "info");
-    return;
-  }
-
-  const file = document.getElementById("importFile").files[0];
-  if (!file) {
-    showToast("Please select a CSV file first", "error");
-    return;
-  }
-
-  if (!confirm("This will overwrite all existing data. Continue?")) return;
-
-  const reader = new FileReader();
-  reader.onload = e => processCSV(e.target.result);
-  reader.readAsText(file);
+  // Previously imported CSV into IndexedDB. Now use Cloud Restore instead.
+  appAlertDialog('Import from CSV is disabled. Use Restore from Cloud (after authenticating with your User ID and Password) to restore your data.');
+  // If you still need CSV import, implement a careful import routine that validates and maps fields.
 }
 
-function processCSV(text) {
-  const lines = text.split(/\r?\n/);
-  let mode = "";
-
-  const settings = [];
-  const transactions = [];
-  const debtBorrows = [];
-  const debtRepays = [];
-
-  lines.forEach(line => {
-    line = line.trim();
-    if (!line) return;
-
-    if (line.startsWith("#")) {
-      if (line === "#SETTINGS") mode = "SETTINGS";
-      else if (line === "#TRANSACTIONS") mode = "TRANSACTIONS";
-      else if (line === "#DEBT_BORROWS") mode = "DEBT_BORROWS";
-      else if (line === "#DEBT_REPAYS") mode = "DEBT_REPAYS";
-      return;
-    }
-
-    if (line.startsWith("id,")) return;
-
-    const cols = parseCsvRow(line);
-
-    if (mode === "SETTINGS") {
-      settings.push({
-        id: Number(cols[0]),
-        brokerageBuyPct: Number(cols[1]),
-        brokerageSellPct: Number(cols[2]),
-        dpCharge: Number(cols[3]),
-        portfolioSize: Number(cols[4]),
-        maxAllocationPct: Number(cols[5]),
-        avgLevel1Pct: Number(cols[6]),
-        avgLevel2Pct: Number(cols[7]),
-        fdRatePct: Number(cols[8]),
-        inflationRatePct: Number(cols[9]),
-        sellTargetPct: Number(cols[10] || 15),
-        stopLossPct: Number(cols[11] || 8),
-        minHoldDaysTrim: Number(cols[12] || 20)
-      });
-    }
-
-    if (mode === "TRANSACTIONS") {
-      transactions.push({
-        id: Number(cols[0]),
-        date: cols[1],
-        stock: cols[2],
-        type: cols[3],
-        qty: Number(cols[4]),
-        price: Number(cols[5]),
-        brokerage: Number(cols[6]),
-        dpCharge: Number(cols[7]),
-        reason: cols[8] || "",
-        note: cols[9] || ""
-      });
-    }
-
-    if (mode === "DEBT_BORROWS") {
-      debtBorrows.push({
-        id: Number(cols[0]),
-        date: cols[1],
-        lender: cols[2],
-        category: cols[3],
-        amount: Number(cols[4]),
-        interestPct: Number(cols[5] || 0),
-        note: cols[6] || "",
-        createdAt: cols[7] || ""
-      });
-    }
-
-    if (mode === "DEBT_REPAYS") {
-      debtRepays.push({
-        id: Number(cols[0]),
-        date: cols[1],
-        lender: cols[2],
-        amount: Number(cols[3]),
-        note: cols[4] || "",
-        createdAt: cols[5] || ""
-      });
-    }
-  });
-
-  restoreDatabase(settings[0], transactions, debtBorrows, debtRepays);
-}
-
-/* ---------------- RESTORE ---------------- */
-function restoreDatabase(setting, transactions, debtBorrows = [], debtRepays = []) {
-  const tx = db.transaction(["settings", "transactions", "debt_borrows", "debt_repays"], "readwrite");
-
-  tx.objectStore("settings").clear();
-  tx.objectStore("transactions").clear();
-  tx.objectStore("debt_borrows").clear();
-  tx.objectStore("debt_repays").clear();
-
-  tx.oncomplete = () => {
-    const tx2 = db.transaction(["settings", "transactions", "debt_borrows", "debt_repays"], "readwrite");
-
-    tx2.objectStore("settings").add(setting);
-    transactions.forEach(t => tx2.objectStore("transactions").add(t));
-    debtBorrows.forEach(b => tx2.objectStore("debt_borrows").add(b));
-    debtRepays.forEach(r => tx2.objectStore("debt_repays").add(r));
-
-    tx2.oncomplete = () => {
-      showToast("Import completed. Reloading data...");
-      setTimeout(() => location.reload(), 800);
-    };
-  };
-}
-
+// Keep functions global for Settings.html onclick handlers
+window.exportCSV = exportCSV;
+window.importCSV = importCSV;

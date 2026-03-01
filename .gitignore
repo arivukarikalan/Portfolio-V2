@@ -1,0 +1,12 @@
+# ------------------------------
+# Google Apps Script (cloud-only)
+# ------------------------------
+server/
+*.gs
+
+# ------------------------------
+# OS / editor noise (optional)
+# ------------------------------
+.DS_Store
+Thumbs.db
+.vscode/

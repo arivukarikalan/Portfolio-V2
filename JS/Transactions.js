@@ -33,6 +33,11 @@ function normalizeStockName(value) {
     .toUpperCase();
 }
 
+function toFiniteNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function parseDateLocal(dateStr) {
   const parts = String(dateStr || "").split("-");
   const y = Number(parts[0]);
@@ -43,11 +48,16 @@ function parseDateLocal(dateStr) {
 }
 
 function resolveTxnBrokerage(txn, settings) {
+  const safeSettings = settings || {
+    brokerageBuyPct: 0,
+    brokerageSellPct: 0,
+    dpCharge: 0
+  };
   return calculateBrokerage(
     txn.type,
-    Number(txn.qty),
-    Number(txn.price),
-    settings
+    toFiniteNumber(txn.qty, 0),
+    toFiniteNumber(txn.price, 0),
+    safeSettings
   );
 }
 
@@ -300,14 +310,17 @@ function exportTransactionsCSV() {
     };
 }
 
-function importTransactionsCSV() {
+async function importTransactionsCSV() {
   const fileInput = document.getElementById("txnImportFile");
   const file = fileInput?.files?.[0];
   if (!file) {
     if (typeof showToast === "function") showToast("Please select a transaction CSV file", "error");
     return;
   }
-  if (!confirm("This will overwrite all transaction records only. Continue?")) return;
+  const ok = (typeof window !== "undefined" && typeof window.appConfirmDialog === "function")
+    ? await window.appConfirmDialog("This will overwrite all transaction records only. Continue?", { title: "Confirm Import", okText: "Overwrite" })
+    : window.confirm("This will overwrite all transaction records only. Continue?");
+  if (!ok) return;
 
   const reader = new FileReader();
   reader.onload = ev => {
@@ -427,11 +440,7 @@ function initTransactionBackupControls() {
       const note = (document.getElementById("txnNote")?.value || "").trim();
   
       if (!date || !stock || qty <= 0 || price <= 0) {
-        if (typeof showToast === "function") {
-          showToast("Please fill valid stock, quantity, price, and date", "error");
-        } else {
-          alert("Invalid input");
-        }
+        if (typeof showToast === "function") showToast("Please fill valid stock, quantity, price, and date", "error");
         return;
       }
   
@@ -622,8 +631,11 @@ function toggleTxnHistory() {
         };
   }
   
-  function deleteTxn(id) {
-    if (!confirm("Delete this transaction permanently?")) return;
+  async function deleteTxn(id) {
+    const ok = (typeof window !== "undefined" && typeof window.appConfirmDialog === "function")
+      ? await window.appConfirmDialog("Delete this transaction permanently?", { title: "Delete Transaction", okText: "Delete" })
+      : window.confirm("Delete this transaction permanently?");
+    if (!ok) return;
   
     const tx = db.transaction("transactions", "readwrite");
     tx.objectStore("transactions").delete(id);
@@ -968,8 +980,10 @@ function loadDashboard() {
         map[t.stock] ??= { lots: [] };
         const txnBrokerage = resolveTxnBrokerage(t, settings);
         totalBrokerage += txnBrokerage;
+        const qtyNum = toFiniteNumber(t.qty, 0);
+        const priceNum = toFiniteNumber(t.price, 0);
         if (t.type === "BUY" && new Date(t.date) >= periodStart) {
-          periodInvestedBase += (Number(t.qty) * Number(t.price)) + txnBrokerage;
+          periodInvestedBase += (qtyNum * priceNum) + txnBrokerage;
         }
         brokerageByStock[t.stock] ??= { buy: 0, sell: 0, total: 0 };
         if (t.type === "BUY") brokerageByStock[t.stock].buy += txnBrokerage;
@@ -978,13 +992,13 @@ function loadDashboard() {
 
         if (t.type === "BUY") {
           map[t.stock].lots.push({
-            qty: t.qty,
-            price: t.price,
-            brokeragePerUnit: txnBrokerage / t.qty,
+            qty: qtyNum,
+            price: priceNum,
+            brokeragePerUnit: qtyNum > 0 ? (txnBrokerage / qtyNum) : 0,
             date: t.date
           });
         } else {
-          let sellQty = t.qty;
+          let sellQty = qtyNum;
           let buyCost = 0;
           let buyBrokerage = 0;
 
@@ -1003,7 +1017,7 @@ function loadDashboard() {
             }
           }
 
-          const sellValue = t.qty * t.price;
+          const sellValue = qtyNum * priceNum;
 
           const net =
             sellValue -
@@ -1039,13 +1053,13 @@ function loadDashboard() {
       /* =============================================
          STEP 3: Update Dashboard UI
          ============================================= */
-      investedEl.innerText = `₹${totalInvested.toFixed(2)}`;
-      pnlEl.innerText = `₹${totalPnL.toFixed(2)}`;
+      investedEl.innerText = `₹${toFiniteNumber(totalInvested, 0).toFixed(2)}`;
+      pnlEl.innerText = `₹${toFiniteNumber(totalPnL, 0).toFixed(2)}`;
       holdingsEl.innerText = activeHoldings;
-      if (brokerageEl) brokerageEl.innerText = `₹${totalBrokerage.toFixed(2)}`;
+      if (brokerageEl) brokerageEl.innerText = `₹${toFiniteNumber(totalBrokerage, 0).toFixed(2)}`;
       if (returnEl) {
         const returnPct = periodInvestedBase > 0 ? (periodPnL / periodInvestedBase) * 100 : 0;
-        returnEl.textContent = `${returnPct.toFixed(2)}% return in 3 Months`;
+        returnEl.textContent = `${toFiniteNumber(returnPct, 0).toFixed(2)}% return in 3 Months`;
       }
       const brkgBody = document.getElementById("brokerageBreakdownBody");
       if (brkgBody) {
@@ -1097,7 +1111,7 @@ function loadDashboard() {
                   <div class="txn-sub">Hold Days: ${r.days}</div>
                 </div>
                 <div class="right-col">
-                  <div class="metric-strong text-primary">₹${r.invested.toFixed(2)}</div>
+                  <div class="metric-strong text-primary">₹${toFiniteNumber(r.invested, 0).toFixed(2)}</div>
                   <div class="tiny-label">Invested</div>
                 </div>
               </div>

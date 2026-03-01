@@ -192,6 +192,7 @@
 
 <!-- ================= SCRIPTS ================= -->
 <script src="JS/Db.js"></script>
+<script src="JS/App.js"></script>
 <script src="JS/Settings.js"></script>
 <script src="JS/Transactions.js"></script>
 <script src="JS/Dashboard.js"></script>
@@ -212,9 +213,7 @@
   // Apply saved font-size
   (function(){ const s = localStorage.getItem('uiFontSize') || 'medium'; document.documentElement.classList.remove('size-small','size-medium','size-large'); document.documentElement.classList.add('size-'+s); })();
 
-  openDB()
-    .then(seedSettings)
-    .then(loadDashboardAnalytics);
+  (function(){ const uid = localStorage.getItem('activeUserId'); if(!uid){ window.location.href = './client/profile.html'; return; } openDB().then(seedSettings).then(loadDashboardAnalytics); })();
 </script>
 
 </body>
