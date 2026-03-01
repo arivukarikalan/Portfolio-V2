@@ -212,6 +212,24 @@
     <small class="text-muted d-block mt-2">
       Import will erase existing data before restoring.
     </small>
+
+    <!-- Cloud sync controls: manual backup / restore via Google Sheets -->
+    <div class="mt-3">
+      <button id="sync-cloud-btn" class="btn btn-outline-secondary w-100 mb-2" type="button">
+        <i class="bi bi-cloud-arrow-up"></i> Sync to Cloud
+      </button>
+      <button id="restore-cloud-btn" class="btn btn-outline-secondary w-100 mb-2" type="button">
+        <i class="bi bi-cloud-arrow-down"></i> Restore from Cloud
+      </button>
+      <!-- New check button for diagnostics -->
+      <button id="check-cloud-btn" class="btn btn-outline-info w-100 mb-2" type="button">
+        <i class="bi bi-bug"></i> Check Cloud (diag)
+      </button>
+      <small class="text-muted d-block mt-2">
+        Manual cloud backup/restore. Restores will overwrite local data after confirmation.
+      </small>
+    </div>
+
   </div>
   </section>
 
@@ -228,6 +246,12 @@
 <!-- ================= SCRIPTS ================= -->
 <script src="JS/Db.js"></script>
 <script src="JS/Settings.js"></script>
+
+<!-- Load cloud UI wiring (ES module). Adjust path if your layout differs. -->
+<script type="module">
+  // client/cloudUi.js auto-wires the buttons with IDs #sync-cloud-btn and #restore-cloud-btn
+  import './client/cloudUi.js';
+</script>
 
 <script>
   function toggleTheme() {
