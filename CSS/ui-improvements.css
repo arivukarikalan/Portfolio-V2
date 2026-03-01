@@ -11,6 +11,11 @@ html { font-size: var(--base-font); }
 @media (max-width:420px){ :root{ --base-font:14px } }
 @media (min-width:1024px){ :root{ --base-font:16px } }
 
+/* --- Font size presets (Settings control toggles these classes on <html>) --- */
+html.size-small  { --base-font: 14px; }   /* small: current size (or slightly smaller) */
+html.size-medium { --base-font: 15px; }   /* medium: a bit bigger */
+html.size-large  { --base-font: 17px; }   /* large: noticeably bigger */
+
 /* Readability & content width */
 .container.page-shell { max-width: 920px; margin: 0 auto; padding-left: 14px; padding-right: 14px; }
 
@@ -112,6 +117,113 @@ body.dark .stat-card { background: color-mix(in oklab, var(--card) 92%, #071226)
   .txn-card { padding:12px; }
   .panel-head { padding:10px; }
   .hero-title { font-size:1.01rem; }
+}
+
+/* --- Semantic color enforce (last-resort overrides) --- */
+.profit,
+.metric-strong.profit,
+.data-highlight.positive,
+.kpi .kpi-value.positive {
+  color: var(--profit) !important;
+  font-weight: 800;
+}
+.loss,
+.metric-strong.loss,
+.data-highlight.negative,
+.kpi .kpi-value.negative {
+  color: var(--loss) !important;
+  font-weight: 800;
+}
+
+/* --- Header & icon contrast (ensure icons visible in dark mode) --- */
+.app-header .btn i,
+.app-header .btn svg {
+  color: var(--text) !important;
+}
+body.dark .app-header .btn i,
+body.dark .app-header .btn svg {
+  color: var(--text) !important;
+}
+
+/* Bottom nav icons contrast */
+.bottom-nav a i,
+.bottom-nav a {
+  color: var(--muted);
+}
+body.dark .bottom-nav a,
+body.dark .bottom-nav a i {
+  color: var(--muted) !important;
+}
+.bottom-nav a.active { color: var(--accent) !important; font-weight:700; }
+
+/* --- Insights dark-mode readability fixes --- */
+body.dark .page-insights .panel,
+body.dark .page-insights .txn-card,
+body.dark .page-insights .hero {
+  background: color-mix(in oklab, var(--card) 92%, #071226);
+  border-color: color-mix(in oklab, var(--border) 86%, #1b2a44);
+}
+body.dark .page-insights .panel-head {
+  background: color-mix(in oklab, var(--card) 90%, #102033);
+  color: #d9e7fa;
+}
+
+/* --- Mobile: keep desktop table structure (allow horizontal scroll) --- */
+@media (max-width: 520px) {
+  .table thead { display: table-header-group !important; }
+  .table tbody tr { display: table-row !important; }
+  .table tbody td { display: table-cell !important; white-space: nowrap; }
+  .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+/* Ensure .data-negative / .data-highlight variants rendered correctly everywhere */
+.data-negative { color: var(--loss) !important; font-weight:800; }
+.data-highlight.positive { color: var(--profit) !important; }
+.data-highlight.negative { color: var(--loss) !important; }
+
+/* Move / enforce small per-page inline rules here so nothing blocks */
+.loss-value {
+  color: var(--loss) !important;
+  font-weight: 800;
+}
+
+/* clickable rows used across several pages (LossReport, TradeQuality) */
+.row-clickable { cursor: pointer; }
+.row-clickable:hover { background: color-mix(in oklab, var(--card) 87%, #e8f1ff); }
+
+/* TradeQuality: table row hover and pointer (mobile & desktop consistent) */
+#tqTable tbody tr { cursor: pointer; }
+#tqTable tbody tr:hover { background: color-mix(in oklab, var(--card) 87%, #e8f1ff); }
+
+/* txn-table spacing used by LossReport and TradeQuality transaction lists */
+.txn-table { margin-top: 10px; }
+
+/* Ensure profit/loss values are always applied (last-resort enforcement) */
+.profit, .metric-strong.profit, .data-highlight.positive, .u-profit {
+  color: var(--profit) !important;
+  font-weight: 800;
+}
+.loss, .metric-strong.loss, .data-highlight.negative, .u-loss {
+  color: var(--loss) !important;
+  font-weight: 800;
+}
+
+/* Ensure icons in header and bottom nav remain visible in dark mode */
+.app-header .btn i, .app-header .btn svg,
+.bottom-nav a i, .bottom-nav a {
+  color: var(--text) !important;
+}
+body.dark .app-header .btn i,
+body.dark .bottom-nav a i {
+  color: var(--text) !important;
+}
+
+/* Keep desktop table structure on small screens but allow horizontal scroll */
+.table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media (max-width: 520px) {
+  .table thead { display: table-header-group !important; }
+  .table tbody tr { display: table-row !important; }
+  .table tbody td { display: table-cell !important; white-space: nowrap; }
 }
 
 /* Keep this file additive and minimal — override or tune specific selectors if required. */

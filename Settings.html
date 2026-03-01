@@ -163,6 +163,24 @@
     </div>
   </section>
 
+  <!-- ================= UI FONT SIZE ================= -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-type"></i> UI Font Size</h3>
+        <p class="panel-note">Choose font size for the entire app. Persists across pages.</p>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="d-flex gap-3 align-items-center">
+        <label class="u-small"><input type="radio" name="uiFontSize" value="small"> Small</label>
+        <label class="u-small"><input type="radio" name="uiFontSize" value="medium"> Medium (default)</label>
+        <label class="u-small"><input type="radio" name="uiFontSize" value="large"> Large</label>
+      </div>
+      <div class="tiny-label mt-2">Changes apply immediately and persist for all pages.</div>
+    </div>
+  </section>
+
   <button onclick="saveSettings()" class="btn btn-primary w-100 mb-3">
     Save All Settings
   </button>
@@ -223,6 +241,29 @@
   if (localStorage.getItem("theme") === "dark") {
     document.body.classList.add("dark");
   }
+
+  // Apply font-size class to <html> from localStorage
+  function applyFontSizeClass(size) {
+    const root = document.documentElement;
+    root.classList.remove('size-small','size-medium','size-large');
+    root.classList.add('size-' + (size || 'medium'));
+  }
+
+  // Initialize font control UI, persist selection and apply immediately
+  document.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('uiFontSize') || 'medium';
+    applyFontSizeClass(saved);
+
+    const radios = document.querySelectorAll('input[name="uiFontSize"]');
+    radios.forEach(r => {
+      r.checked = (r.value === saved);
+      r.addEventListener('change', (e) => {
+        const v = e.target.value;
+        applyFontSizeClass(v);
+        localStorage.setItem('uiFontSize', v);
+      });
+    });
+  });
 
   openDB().then(seedSettings).then(loadSettings);
 </script>

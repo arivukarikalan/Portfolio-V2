@@ -10,12 +10,7 @@
   <link href="CSS/ui-theme.css" rel="stylesheet">
   <link href="CSS/ui-improvements.css" rel="stylesheet">
   <link rel="icon" type="image/png" href="Assets/Icons/Favicon.png">
-  <style>
-    .loss-value { color: #c82333; font-weight:700; }
-    .row-clickable { cursor: pointer; }
-    .row-clickable:hover { background:#f8f9fa; }
-    .txn-table { margin-top:10px; }
-  </style>
+  <!-- per-page visual tweaks moved to CSS/ui-improvements.css -->
 </head>
 <body class="page-lossreport">
 
@@ -83,6 +78,13 @@
     localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
   }
   if (localStorage.getItem("theme") === "dark") document.body.classList.add("dark");
+
+  // Apply saved font-size
+  (function(){ 
+    const s = localStorage.getItem('uiFontSize') || 'medium'; 
+    document.documentElement.classList.remove('size-small','size-medium','size-large'); 
+    document.documentElement.classList.add('size-'+s); 
+  })();
 
   openDB().then(seedSettings).then(() => {
     loadLossReport();

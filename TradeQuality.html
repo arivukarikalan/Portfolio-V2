@@ -10,13 +10,7 @@
   <link href="CSS/ui-theme.css" rel="stylesheet">
   <link href="CSS/ui-improvements.css" rel="stylesheet">
   <link rel="icon" type="image/png" href="Assets/Icons/Favicon.png">
-  <style>
-    /* small UI improvements for Trade Quality */
-    #tqTable tbody tr { cursor: pointer; }
-    #tqTable tbody tr:hover { background: #f8f9fa; }
-    #tqDetails .txn-table { margin-top: 8px; }
-    .txn-card { margin-bottom: 8px; }
-  </style>
+  <!-- per-page visual tweaks moved to CSS/ui-improvements.css -->
 </head>
 <body class="page-tradequality">
 
@@ -99,6 +93,13 @@
     localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
   }
   if (localStorage.getItem("theme") === "dark") document.body.classList.add("dark");
+
+  // Apply saved font-size
+  (function(){ 
+    const s = localStorage.getItem('uiFontSize') || 'medium'; 
+    document.documentElement.classList.remove('size-small','size-medium','size-large'); 
+    document.documentElement.classList.add('size-'+s); 
+  })();
 
   openDB().then(seedSettings).then(() => {
     loadTradeQuality();

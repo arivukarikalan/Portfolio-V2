@@ -97,8 +97,15 @@
     document.body.classList.add("dark");
   }
 
-    // ================= DEFAULT DATE: LAST 1 MONTH =================
-    const today = new Date();
+  // Apply saved font-size
+  (function() {
+    const s = localStorage.getItem('uiFontSize') || 'medium';
+    document.documentElement.classList.remove('size-small', 'size-medium', 'size-large');
+    document.documentElement.classList.add('size-' + s);
+  })();
+
+  // ================= DEFAULT DATE: LAST 1 MONTH =================
+  const today = new Date();
   const lastMonth = new Date();
   lastMonth.setMonth(today.getMonth() - 1);
 

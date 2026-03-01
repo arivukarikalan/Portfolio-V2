@@ -217,6 +217,13 @@
     document.body.classList.add("dark");
   }
 
+  // Apply saved font-size across the app
+  (function(){
+    const s = localStorage.getItem('uiFontSize') || 'medium';
+    document.documentElement.classList.remove('size-small','size-medium','size-large');
+    document.documentElement.classList.add('size-' + s);
+  })();
+
   openDB()
     .then(seedSettings)
     .then(() => {
@@ -225,6 +232,45 @@
       // load total historical loss for home stat
       if (typeof loadTotalLoss === "function") loadTotalLoss();
     });
+</script>
+
+<script>
+  (function () {
+    const el = document.getElementById('dashPnL');
+    if (!el) return;
+
+    function parseNumberFromText(text) {
+      if (!text) return NaN;
+      // remove currency symbols, commas, spaces; keep minus and dot
+      const cleaned = String(text).replace(/[^0-9\-\.\,]/g, '').replace(/,/g, '');
+      const num = parseFloat(cleaned);
+      return Number.isFinite(num) ? num : NaN;
+    }
+
+    function updateDashClass() {
+      const raw = el.textContent || el.innerText || '';
+      const val = parseNumberFromText(raw);
+      // ensure base class exists
+      el.classList.add('data-highlight');
+      // remove both first
+      el.classList.remove('positive', 'negative');
+      if (Number.isFinite(val)) {
+        if (val > 0) el.classList.add('positive');
+        else if (val < 0) el.classList.add('negative');
+        // zero -> no extra semantic class
+      }
+    }
+
+    // initial run (in case value is already set)
+    updateDashClass();
+
+    // observe for changes made by other scripts (Dashboard.js)
+    const mo = new MutationObserver(() => updateDashClass());
+    mo.observe(el, { characterData: true, childList: true, subtree: true });
+
+    // optional: stop observing after some time if desired
+    // setTimeout(() => mo.disconnect(), 60_000);
+  })();
 </script>
 
 </body>

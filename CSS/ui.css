@@ -721,9 +721,11 @@ body.dark .app-header .btn { border-color: rgba(255,255,255,0.04); }
   .panel-head, .panel-body { padding: 10px; }
   .txn-card { padding: 10px; }
   .metric-strong { font-size: 1rem; }
-  .table thead { display: none; }
-  .table tbody tr { display: block; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
-  .table tbody td { display: flex; justify-content: space-between; padding: 4px 0; }
+  /* Keep table headers visible on mobile to preserve desktop-like structure.
+     Allow horizontal scroll via .table-responsive instead of stacking rows. */
+  .table thead { display: table-header-group; }
+  .table tbody tr { display: table-row; }
+  .table tbody td { display: table-cell; white-space: nowrap; }
 }
 
 /* Accessibility: larger focus targets */

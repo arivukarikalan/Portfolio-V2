@@ -24,6 +24,7 @@
     --text: #1f2937;
     --muted: #6b7280;
     --accent: #0d6efd;
+    --blue: var(--accent);
     --profit: #0f9d58; /* green */
     --loss: #d4403a;   /* red */
     --warn: #f59e0b;   /* amber */
@@ -45,6 +46,7 @@
     --text: #e6eef8;
     --muted: #9aa7bd;
     --accent: #60a5fa;
+    --blue: var(--accent);
     --profit: #34d399;
     --loss: #fb7185;
     --warn: #fbbf24;

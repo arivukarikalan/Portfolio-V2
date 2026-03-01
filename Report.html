@@ -103,6 +103,13 @@
       document.body.classList.add("dark");
     }
 
+    // Apply saved font-size
+    (function(){ 
+      const s = localStorage.getItem('uiFontSize') || 'medium'; 
+      document.documentElement.classList.remove('size-small','size-medium','size-large'); 
+      document.documentElement.classList.add('size-'+s); 
+    })();
+
     openDB()
       .then(seedSettings)
       .then(loadReportPage);
