@@ -5,7 +5,7 @@
    - Cloud snapshot is source of truth
 */
 import { setUserContext, clearAndRestore, fetchLatestFromCloud, uploadToCloud, uploadSnapshotToCloud } from './cloudSync.js';
-const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxRX-y7kiDT4GqN18F6-e46pibw_gbJxmOHlglm4YCoUMjYdhVt-vbBj2fQgGkcQr8S/exec';
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwkn6cNRV9UE2XehtFUdZoaySiDiOPqEXLC312FU3Ybbav5jNo5toEOuOvmzzAmiw5b/exec';
 
 function getAppsUrl() {
   const url = (typeof window !== 'undefined' && window.APP_APPS_SCRIPT_URL) ? window.APP_APPS_SCRIPT_URL : DEFAULT_APPS_SCRIPT_URL;
@@ -106,6 +106,43 @@ async function retryDeleteDatabase(name, attempts = 6, waitMs = 250) {
     await delay(waitMs);
   }
   return false;
+}
+
+async function clearLocalTransactionsOnly() {
+  return new Promise((resolve, reject) => {
+    try {
+      const req = indexedDB.open('PortfolioDB');
+      req.onerror = () => reject(req.error || new Error('Failed to open PortfolioDB'));
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('transactions')) {
+          try { db.close(); } catch (e) {}
+          resolve({ ok: true, cleared: 0 });
+          return;
+        }
+        try {
+          const tx = db.transaction('transactions', 'readwrite');
+          const store = tx.objectStore('transactions');
+          const countReq = store.count();
+          let count = 0;
+          countReq.onsuccess = () => { count = Number(countReq.result || 0); };
+          countReq.onerror = () => {};
+          const clearReq = store.clear();
+          clearReq.onerror = () => reject(clearReq.error || new Error('Failed to clear transactions'));
+          tx.oncomplete = () => {
+            try { db.close(); } catch (e) {}
+            resolve({ ok: true, cleared: count });
+          };
+          tx.onerror = () => reject(tx.error || new Error('Failed transaction while clearing transactions'));
+        } catch (e) {
+          try { db.close(); } catch (e2) {}
+          reject(e);
+        }
+      };
+    } catch (e) {
+      reject(e);
+    }
+  });
 }
 
 async function fetchUserRows(appsUrl) {
@@ -497,6 +534,53 @@ export async function logout() {
 
 if (typeof window !== 'undefined') window.appLogout = logout;
 
+/* deleteTransactionsOnly()
+   - clears local transactions store
+   - uploads empty-transactions snapshot to cloud for active user
+   - keeps profile/session active
+*/
+export async function deleteTransactionsOnly() {
+  const userId = (typeof localStorage !== 'undefined') ? String(localStorage.getItem('activeUserId') || '').trim() : '';
+  if (!userId) throw new Error('No active user');
+
+  const appsUrl = getAppsUrl();
+  if (!appsUrl) throw new Error('Cloud endpoint not configured');
+
+  await clearLocalTransactionsOnly();
+  const uploadRes = await uploadToCloud(appsUrl, { userId, eventType: 'transactions_purge', skipIfNoChange: false });
+  return { ok: true, userId, response: uploadRes?.response || uploadRes || null };
+}
+
+/* deleteProfileAndData()
+   - clears all local portfolio data
+   - uploads empty snapshot with profile_delete event
+   - signs out user and redirects to profile page
+*/
+export async function deleteProfileAndData() {
+  const userId = (typeof localStorage !== 'undefined') ? String(localStorage.getItem('activeUserId') || '').trim() : '';
+  if (!userId) throw new Error('No active user');
+
+  const appsUrl = getAppsUrl();
+  if (!appsUrl) throw new Error('Cloud endpoint not configured');
+
+  await clearAndRestore({
+    transactions: [],
+    settings: {},
+    debt: { borrows: [], repays: [] },
+    stockMappings: []
+  });
+  await uploadToCloud(appsUrl, { userId, eventType: 'profile_delete', skipIfNoChange: false });
+
+  await closeGlobalDBIfOpen();
+  await retryDeleteDatabase('PortfolioDB', 8, 250);
+  try { localStorage.removeItem('activeUserId'); } catch (e) {}
+  setSessionRecoveryHash(null);
+  if (typeof window !== 'undefined') {
+    window.location.href = './client/profile.html';
+  }
+  return { ok: true, userId };
+}
+
 /* rotateRecoveryKey(currentRecoveryKey, nextRecoveryKey?)
    - Verifies current key against cloud hash
    - Updates cloud snapshot with new recovery hash (eventType: passkey_update)
@@ -562,4 +646,6 @@ export function __debugLocalState() {
 if (typeof window !== 'undefined') {
   window.__debugListDatabases = __debugListDatabases;
   window.__debugLocalState = __debugLocalState;
+  window.appDeleteTransactionsOnly = deleteTransactionsOnly;
+  window.appDeleteProfileAndData = deleteProfileAndData;
 }

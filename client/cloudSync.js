@@ -27,7 +27,8 @@ const STORE_NAMES = {
   transactions: 'transactions',
   settings: 'settings',
   debtBorrows: 'debt_borrows',
-  debtRepays: 'debt_repays'
+  debtRepays: 'debt_repays',
+  stockMappings: 'stock_mappings'
 };
 const DEVICE_ID_KEY = 'pt_device_id';
 const APP_NAME = 'PortfolioTracker';
@@ -118,6 +119,16 @@ function readStore(db, storeName) {
 function openDatabase() {
   const requiredStores = Object.values(STORE_NAMES);
   const DB_NAME = FIXED_DB_NAME;
+  const ensureStore = (db, name) => {
+    if (db.objectStoreNames.contains(name)) return;
+    if (name === STORE_NAMES.stockMappings) {
+      const store = db.createObjectStore(name, { keyPath: 'stock' });
+      store.createIndex('ticker', 'ticker', { unique: false });
+      store.createIndex('updatedAt', 'updatedAt', { unique: false });
+      return;
+    }
+    db.createObjectStore(name, { keyPath: 'id', autoIncrement: true });
+  };
 
   return new Promise((resolve, reject) => {
     let req = indexedDB.open(DB_NAME);
@@ -125,9 +136,7 @@ function openDatabase() {
     req.onupgradeneeded = (ev) => {
       const db = ev.target.result;
       for (const s of requiredStores) {
-        if (!db.objectStoreNames.contains(s)) {
-          db.createObjectStore(s, { keyPath: 'id', autoIncrement: true });
-        }
+        ensureStore(db, s);
       }
     };
 
@@ -144,9 +153,7 @@ function openDatabase() {
         req2.onupgradeneeded = (ev2) => {
           const d = ev2.target.result;
           for (const s of requiredStores) {
-            if (!d.objectStoreNames.contains(s)) {
-              d.createObjectStore(s, { keyPath: 'id', autoIncrement: true });
-            }
+            ensureStore(d, s);
           }
         };
         req2.onsuccess = () => resolve(req2.result);
@@ -165,11 +172,12 @@ function openDatabase() {
 export async function exportAll() {
   const db = await openDatabase();
   try {
-    const [transactions, settingsArr, borrows, repays] = await Promise.all([
+    const [transactions, settingsArr, borrows, repays, stockMappings] = await Promise.all([
       readStore(db, STORE_NAMES.transactions),
       readStore(db, STORE_NAMES.settings),
       readStore(db, STORE_NAMES.debtBorrows),
-      readStore(db, STORE_NAMES.debtRepays)
+      readStore(db, STORE_NAMES.debtRepays),
+      readStore(db, STORE_NAMES.stockMappings)
     ]);
 
     // settings may be stored as an array or single object depending on app - normalize to object
@@ -186,7 +194,8 @@ export async function exportAll() {
         debt: {
           borrows: borrows || [],
           repays: repays || []
-        }
+        },
+        stockMappings: stockMappings || []
       }
     };
     return payload;
@@ -419,14 +428,16 @@ export async function clearAndRestore(data) {
       STORE_NAMES.transactions,
       STORE_NAMES.settings,
       STORE_NAMES.debtBorrows,
-      STORE_NAMES.debtRepays
+      STORE_NAMES.debtRepays,
+      STORE_NAMES.stockMappings
     ], 'readwrite');
 
     const stores = {
       transactions: tx.objectStore(STORE_NAMES.transactions),
       settings: tx.objectStore(STORE_NAMES.settings),
       debtBorrows: tx.objectStore(STORE_NAMES.debtBorrows),
-      debtRepays: tx.objectStore(STORE_NAMES.debtRepays)
+      debtRepays: tx.objectStore(STORE_NAMES.debtRepays),
+      stockMappings: tx.objectStore(STORE_NAMES.stockMappings)
     };
 
     // Clear stores
@@ -450,6 +461,10 @@ export async function clearAndRestore(data) {
     }
     if (Array.isArray(data.debt?.repays)) {
       for (const r of data.debt.repays) stores.debtRepays.add(r);
+    }
+
+    if (Array.isArray(data.stockMappings)) {
+      for (const m of data.stockMappings) stores.stockMappings.add(m);
     }
 
     return await new Promise((resolve, reject) => {

@@ -90,6 +90,7 @@
 <script src="JS/App.js"></script>
 <script src="JS/Settings.js"></script>
 <script src="JS/Transactions.js"></script>
+<script src="JS/LivePrices.js"></script>
 
 <script>
   /* =====================================================
@@ -113,7 +114,16 @@
   /* =====================================================
      FEATURE: Page Initialization
      ===================================================== */
-  (function(){ const uid = localStorage.getItem('activeUserId'); if(!uid){ window.location.href = './client/profile.html'; return; } openDB().then(seedSettings).then(calculateHoldings); })();
+  (function(){
+    const uid = localStorage.getItem('activeUserId');
+    if(!uid){ window.location.href = './client/profile.html'; return; }
+    openDB()
+      .then(seedSettings)
+      .then(() => {
+        calculateHoldings();
+        if (typeof initLivePrices === "function") initLivePrices();
+      });
+  })();
 </script>
 
 </body>

@@ -14,6 +14,7 @@ window.startApp = async function startApp() {
   if (typeof calculatePnL === 'function') calculatePnL();
   if (typeof loadDashboard === 'function') loadDashboard();
   if (typeof loadTotalLoss === 'function') loadTotalLoss();
+  if (typeof initLivePrices === 'function') initLivePrices();
 };
 
 // Make centralized logout available on app pages without loading auth module upfront.
@@ -22,4 +23,21 @@ if (typeof window !== 'undefined' && typeof window.appLogout !== 'function') {
     const mod = await import('../client/profileManager.js');
     return mod.logout();
   };
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('live-prices-updated', () => {
+    if (typeof calculateHoldings === 'function') calculateHoldings();
+    if (typeof loadDashboard === 'function') loadDashboard();
+  });
+}
+const DEFAULT_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwkn6cNRV9UE2XehtFUdZoaySiDiOPqEXLC312FU3Ybbav5jNo5toEOuOvmzzAmiw5b/exec";
+
+if (typeof window !== 'undefined') {
+  if (!window.APP_APPS_SCRIPT_URL) {
+    window.APP_APPS_SCRIPT_URL = DEFAULT_APPS_SCRIPT_URL;
+  }
+  if (!window.APP_LIVE_PRICE_URL) {
+    window.APP_LIVE_PRICE_URL = window.APP_APPS_SCRIPT_URL;
+  }
 }

@@ -33,6 +33,12 @@ function normalizeStockName(value) {
     .toUpperCase();
 }
 
+function defaultTickerForStockName(stockName) {
+  const stock = normalizeStockName(stockName);
+  const symbol = stock.replace(/[^A-Z0-9.-]/g, "");
+  return symbol ? `NSE:${symbol}` : "";
+}
+
 function toFiniteNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -64,16 +70,44 @@ function resolveTxnBrokerage(txn, settings) {
 function refreshStockOptions() {
   const list = document.getElementById("stockOptions");
   if (!list) return;
+  const hasMappings = !!(db && db.objectStoreNames && db.objectStoreNames.contains("stock_mappings"));
+  const stores = hasMappings ? ["transactions", "stock_mappings"] : ["transactions"];
+  const tx = db.transaction(stores, "readonly");
+  const txnReq = tx.objectStore("transactions").getAll();
+  const mapReq = hasMappings ? tx.objectStore("stock_mappings").getAll() : null;
 
-  db.transaction("transactions", "readonly")
-    .objectStore("transactions")
-    .getAll().onsuccess = e => {
-      const names = Array.from(
-        new Set((e.target.result || []).map(t => normalizeStockName(t.stock)).filter(Boolean))
-      ).sort();
+  tx.oncomplete = () => {
+    const txnRows = txnReq.result || [];
+    const mapRows = mapReq ? (mapReq.result || []) : [];
+    const names = Array.from(new Set(
+      [
+        ...txnRows.map(t => normalizeStockName(t.stock)),
+        ...mapRows.map(m => normalizeStockName(m.stock))
+      ].filter(Boolean)
+    )).sort();
+    list.innerHTML = names.map(n => `<option value="${n}"></option>`).join("");
+  };
+}
 
-      list.innerHTML = names.map(n => `<option value="${n}"></option>`).join("");
-    };
+function ensureStockMappingRecord(stockName) {
+  const stock = normalizeStockName(stockName);
+  if (!stock) return;
+  if (!db?.objectStoreNames?.contains("stock_mappings")) return;
+
+  const tx = db.transaction("stock_mappings", "readwrite");
+  const store = tx.objectStore("stock_mappings");
+  const req = store.get(stock);
+  req.onsuccess = e => {
+    const existing = e.target.result;
+    if (existing) return;
+    store.put({
+      stock,
+      ticker: defaultTickerForStockName(stock),
+      exchange: "NSE",
+      enabled: true,
+      updatedAt: new Date().toISOString()
+    });
+  };
 }
 
 function buildActiveSnapshotForChecklist(txns, settings) {
@@ -179,9 +213,13 @@ function runPreBuyChecklist() {
         const l1 = base * (1 - Number(settings.avgLevel1Pct || 0) / 100);
         const l2 = base * (1 - Number(settings.avgLevel2Pct || 0) / 100);
 
+        const isFirstBuyInCycle = existingQty === 0;
         let zoneText = "Above L1/L2 zones";
         let zoneCls = "status-pill-mini bad";
-        if (price <= l2) {
+        if (isFirstBuyInCycle) {
+          zoneText = "Base buy (First buy of new cycle)";
+          zoneCls = "status-pill-mini info";
+        } else if (price <= l2) {
           zoneText = "In L2 zone";
           zoneCls = "status-pill-mini ok";
         } else if (price <= l1) {
@@ -192,10 +230,14 @@ function runPreBuyChecklist() {
         const lastBuyPrice = Number(s.cycleLastBuyPrice || price);
         const dropFromLastPct = lastBuyPrice > 0 ? ((lastBuyPrice - price) / lastBuyPrice) * 100 : 0;
         const avgRuleHit = dropFromLastPct >= Number(settings.avgLevel1Pct || 0);
-        const avgRuleText = avgRuleHit
-          ? `Drop from last buy: ${dropFromLastPct.toFixed(2)}% (meets Avg L1 rule)`
-          : `Drop from last buy: ${dropFromLastPct.toFixed(2)}% (below Avg L1 rule)`;
-        const avgRuleCls = avgRuleHit ? "status-pill-mini ok" : "status-pill-mini bad";
+        const avgRuleText = isFirstBuyInCycle
+          ? "First buy detected. Next buy analysis will apply Avg L1/L2 rule."
+          : (avgRuleHit
+              ? `Drop from last buy: ${dropFromLastPct.toFixed(2)}% (meets Avg L1 rule)`
+              : `Drop from last buy: ${dropFromLastPct.toFixed(2)}% (below Avg L1 rule)`);
+        const avgRuleCls = isFirstBuyInCycle
+          ? "status-pill-mini info"
+          : (avgRuleHit ? "status-pill-mini ok" : "status-pill-mini bad");
 
         const projectedAvg = (existingQty + qty) > 0
           ? (postStockInvested / (existingQty + qty))
@@ -206,7 +248,9 @@ function runPreBuyChecklist() {
           ? `Allocation ${postAllocPct.toFixed(2)}% (exceeds ${maxAllocPct.toFixed(2)}%)`
           : `Allocation ${postAllocPct.toFixed(2)}% (within ${maxAllocPct.toFixed(2)}%)`;
 
-        const suggestion = postAllocPct > maxAllocPct
+        const suggestion = isFirstBuyInCycle
+          ? "Suggestion: This is base buy for a new cycle. Track next buy near L1/L2 for better averaging discipline."
+          : postAllocPct > maxAllocPct
           ? "Suggestion: reduce qty or wait for lower zone to avoid over-allocation."
           : !avgRuleHit
             ? "Suggestion: buy is early. Better to wait for stronger dip or lower zone."
@@ -272,6 +316,644 @@ function txnParseCsvRow(line) {
   }
   out.push(cur);
   return out;
+}
+
+function parseCsvTextRows(text) {
+  const lines = String(text || "").split(/\r?\n/).filter(l => String(l || "").trim().length);
+  if (!lines.length) return { headers: [], rows: [] };
+  const headers = txnParseCsvRow(lines[0]).map(h => String(h || "").trim());
+  const rows = lines.slice(1).map(line => txnParseCsvRow(line));
+  return { headers, rows };
+}
+
+function normalizeHeaderKey(h) {
+  return String(h || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
+}
+
+const IMPORT_HEADER_ALIASES = {
+  date: ["trade_date", "date", "order_date", "execution_date", "transaction_date", "txn_date"],
+  stock: ["symbol", "stock", "stock_name", "scrip", "security", "instrument", "tradingsymbol", "trading_symbol"],
+  type: ["trade_type", "type", "side", "transaction_type", "buy_sell", "action"],
+  qty: ["quantity", "qty", "filled_qty", "executed_qty", "shares"],
+  price: ["price", "avg_price", "average_price", "trade_price", "execution_price", "rate"],
+  note: ["note", "remarks", "comment", "order_id", "trade_id"],
+  reason: ["reason", "tag", "strategy"]
+};
+
+function getCsvHeaderSignature(headers) {
+  return (headers || []).map(normalizeHeaderKey).join("|");
+}
+
+function findHeaderIndex(headers, aliases) {
+  const keys = (headers || []).map(normalizeHeaderKey);
+  for (let i = 0; i < keys.length; i++) {
+    if (aliases.includes(keys[i])) return i;
+  }
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    if (aliases.some(a => key.includes(a))) return i;
+  }
+  return -1;
+}
+
+function suggestImportMapping(headers) {
+  return {
+    date: findHeaderIndex(headers, IMPORT_HEADER_ALIASES.date),
+    stock: findHeaderIndex(headers, IMPORT_HEADER_ALIASES.stock),
+    type: findHeaderIndex(headers, IMPORT_HEADER_ALIASES.type),
+    qty: findHeaderIndex(headers, IMPORT_HEADER_ALIASES.qty),
+    price: findHeaderIndex(headers, IMPORT_HEADER_ALIASES.price),
+    reason: findHeaderIndex(headers, IMPORT_HEADER_ALIASES.reason),
+    note: findHeaderIndex(headers, IMPORT_HEADER_ALIASES.note)
+  };
+}
+
+function getSavedImportMappings() {
+  try {
+    return JSON.parse(localStorage.getItem("brokerCsvMappings") || "{}") || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function getSavedMappingForHeaders(headers) {
+  const all = getSavedImportMappings();
+  return all[getCsvHeaderSignature(headers)] || null;
+}
+
+function saveMappingForHeaders(headers, mapping) {
+  const all = getSavedImportMappings();
+  const key = getCsvHeaderSignature(headers);
+  all[key] = mapping;
+  localStorage.setItem("brokerCsvMappings", JSON.stringify(all));
+}
+
+function detectBrokerByHeaders(headers) {
+  const set = new Set((headers || []).map(normalizeHeaderKey));
+  const zerodhaRequired = ["symbol", "trade_date", "trade_type", "quantity", "price"];
+  const isZerodha = zerodhaRequired.every(k => set.has(k));
+  if (isZerodha) return "zerodha";
+  return "unknown";
+}
+
+function parseImportDate(raw) {
+  const v = String(raw || "").trim();
+  if (!v) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const dmy = v.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmy) {
+    const day = String(Number(dmy[1])).padStart(2, "0");
+    const month = String(Number(dmy[2])).padStart(2, "0");
+    const year = dmy[3];
+    return `${year}-${month}-${day}`;
+  }
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function parseImportType(raw) {
+  const t = String(raw || "").trim().toUpperCase();
+  if (["BUY", "B"].includes(t)) return "BUY";
+  if (["SELL", "S"].includes(t)) return "SELL";
+  return "";
+}
+
+function parseImportNum(raw) {
+  const cleaned = String(raw == null ? "" : raw).replace(/,/g, "").trim();
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function parseZerodhaFill(headers, row) {
+  const idx = {};
+  headers.forEach((h, i) => { idx[normalizeHeaderKey(h)] = i; });
+  const stock = normalizeStockName(row[idx.symbol]);
+  const date = parseImportDate(row[idx.trade_date]);
+  const type = parseImportType(row[idx.trade_type]);
+  const qty = parseImportNum(row[idx.quantity]);
+  const price = parseImportNum(row[idx.price]);
+  const exchange = String(row[idx.exchange] || "").trim().toUpperCase();
+  const orderId = String(row[idx.order_id] || "").trim();
+  const tradeId = String(row[idx.trade_id] || "").trim();
+  const execTime = String(row[idx.order_execution_time] || "").trim();
+  if (!stock) return { row: null, reason: "missing_stock", stock: "" };
+  if (!date) return { row: null, reason: "invalid_date", stock };
+  if (!type) return { row: null, reason: "invalid_type", stock };
+  if (qty <= 0) return { row: null, reason: "invalid_qty", stock };
+  if (price <= 0) return { row: null, reason: "invalid_price", stock };
+  return {
+    row: {
+      date,
+      stock,
+      type,
+      qty,
+      price,
+      exchange,
+      orderId,
+      tradeId,
+      execTime
+    },
+    reason: "",
+    stock
+  };
+}
+
+function normalizeZerodhaFillsToOrders(fills) {
+  const groups = {};
+  const safeExecKey = (v) => String(v || "").trim() || "";
+
+  (fills || []).forEach(f => {
+    const orderKey = String(f.orderId || "").trim();
+    const fallback = `${f.date}|${f.stock}|${f.type}|${safeExecKey(f.execTime).slice(0, 16)}`;
+    const key = orderKey ? `order|${orderKey}|${f.date}|${f.stock}|${f.type}` : `fallback|${fallback}`;
+    if (!groups[key]) {
+      groups[key] = {
+        date: f.date,
+        stock: f.stock,
+        type: f.type,
+        exchange: f.exchange || "",
+        orderId: orderKey,
+        qtySum: 0,
+        valueSum: 0,
+        tradeIds: new Set(),
+        firstExec: f.execTime || "",
+        lastExec: f.execTime || ""
+      };
+    }
+    const g = groups[key];
+    g.qtySum += Number(f.qty || 0);
+    g.valueSum += Number(f.qty || 0) * Number(f.price || 0);
+    if (f.tradeId) g.tradeIds.add(String(f.tradeId));
+    if (f.execTime && (!g.firstExec || f.execTime < g.firstExec)) g.firstExec = f.execTime;
+    if (f.execTime && (!g.lastExec || f.execTime > g.lastExec)) g.lastExec = f.execTime;
+  });
+
+  const rows = Object.keys(groups).map(k => {
+    const g = groups[k];
+    const qty = Number(g.qtySum || 0);
+    const avgPrice = qty > 0 ? (Number(g.valueSum || 0) / qty) : 0;
+    const importKey = g.orderId
+      ? `zerodha|order|${g.orderId}|${g.date}|${g.stock}|${g.type}`
+      : `zerodha|${g.date}|${g.stock}|${g.type}|${qty}|${avgPrice.toFixed(4)}|${Array.from(g.tradeIds).sort().join("-")}`;
+    const noteParts = [
+      "Imported: Zerodha",
+      g.exchange ? g.exchange : "",
+      g.orderId ? `Order ${g.orderId}` : "",
+      g.tradeIds.size ? `Trades ${g.tradeIds.size}` : ""
+    ].filter(Boolean);
+    return {
+      date: g.date,
+      stock: g.stock,
+      type: g.type,
+      qty,
+      price: avgPrice,
+      reason: "Broker Import",
+      note: noteParts.join(" | "),
+      importSource: "zerodha",
+      importKey
+    };
+  }).filter(r => r.qty > 0 && r.price > 0);
+
+  return { rows, groupsCount: rows.length, fillsCount: (fills || []).length };
+}
+
+function buildManualMappingUI(headers, preset = null) {
+  const panel = document.getElementById("brokerMappingPanel");
+  if (!panel) return;
+  const optionHtml = [`<option value="">Select column</option>`]
+    .concat(headers.map((h, i) => `<option value="${i}">${h}</option>`))
+    .join("");
+  const sel = (k) => {
+    const idx = Number(preset?.[k]);
+    return Number.isInteger(idx) && idx >= 0 ? String(idx) : "";
+  };
+  panel.style.display = "block";
+  panel.innerHTML = `
+    <div class="txn-card">
+      <div class="txn-name">Manual Column Mapping</div>
+      <div class="tiny-label mb-2">Map required fields for this CSV format.</div>
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label">Date</label>
+          <select id="mapColDate" class="form-select">${optionHtml}</select>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Stock</label>
+          <select id="mapColStock" class="form-select">${optionHtml}</select>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Type</label>
+          <select id="mapColType" class="form-select">${optionHtml}</select>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Quantity</label>
+          <select id="mapColQty" class="form-select">${optionHtml}</select>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Price</label>
+          <select id="mapColPrice" class="form-select">${optionHtml}</select>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Reason (optional)</label>
+          <select id="mapColReason" class="form-select">${optionHtml}</select>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Note (optional)</label>
+          <select id="mapColNote" class="form-select">${optionHtml}</select>
+        </div>
+      </div>
+      <div class="tiny-label mt-2">Type values supported: BUY/SELL or B/S</div>
+    </div>
+  `;
+  const setSel = (id, value) => {
+    const el = document.getElementById(id);
+    if (!el || value === "") return;
+    el.value = value;
+  };
+  setSel("mapColDate", sel("date"));
+  setSel("mapColStock", sel("stock"));
+  setSel("mapColType", sel("type"));
+  setSel("mapColQty", sel("qty"));
+  setSel("mapColPrice", sel("price"));
+  setSel("mapColReason", sel("reason"));
+  setSel("mapColNote", sel("note"));
+}
+
+function parseManualMappedRows(rows) {
+  const getIdx = id => Number(document.getElementById(id)?.value ?? -1);
+  const iDate = getIdx("mapColDate");
+  const iStock = getIdx("mapColStock");
+  const iType = getIdx("mapColType");
+  const iQty = getIdx("mapColQty");
+  const iPrice = getIdx("mapColPrice");
+  const iReason = getIdx("mapColReason");
+  const iNote = getIdx("mapColNote");
+  if ([iDate, iStock, iType, iQty, iPrice].some(i => i < 0)) {
+    return { error: "Please map all required columns." };
+  }
+  let invalidRows = 0;
+  const reasonCounts = {};
+  const addReason = (k) => { reasonCounts[k] = (reasonCounts[k] || 0) + 1; };
+  const parsed = rows.map(row => {
+    const date = parseImportDate(row[iDate]);
+    const stock = normalizeStockName(row[iStock]);
+    const type = parseImportType(row[iType]);
+    const qty = parseImportNum(row[iQty]);
+    const price = parseImportNum(row[iPrice]);
+    if (!date || !stock || !type || qty <= 0 || price <= 0) {
+      invalidRows++;
+      if (!stock) addReason("missing_stock");
+      else if (!date) addReason("invalid_date");
+      else if (!type) addReason("invalid_type");
+      else if (qty <= 0) addReason("invalid_qty");
+      else if (price <= 0) addReason("invalid_price");
+      return null;
+    }
+    const reason = iReason >= 0 ? String(row[iReason] || "").trim() : "";
+    const note = iNote >= 0 ? String(row[iNote] || "").trim() : "";
+    return {
+      date,
+      stock,
+      type,
+      qty,
+      price,
+      reason: reason || "Broker Import",
+      note: note || "Imported: Custom CSV mapping"
+    };
+  }).filter(Boolean);
+  return { rows: parsed, invalidRows, reasonCounts };
+}
+
+function getManualMappingSelection() {
+  const getIdx = id => {
+    const v = document.getElementById(id)?.value;
+    if (v == null || v === "") return -1;
+    const n = Number(v);
+    return Number.isInteger(n) ? n : -1;
+  };
+  return {
+    date: getIdx("mapColDate"),
+    stock: getIdx("mapColStock"),
+    type: getIdx("mapColType"),
+    qty: getIdx("mapColQty"),
+    price: getIdx("mapColPrice"),
+    reason: getIdx("mapColReason"),
+    note: getIdx("mapColNote")
+  };
+}
+
+function hasRequiredMapping(mapping) {
+  return ["date", "stock", "type", "qty", "price"].every(k => Number(mapping?.[k]) >= 0);
+}
+
+function buildTxnIdentity(t) {
+  if (t && t.importKey) return `import|${String(t.importKey).trim()}`;
+  return `fallback|${t.date}|${normalizeStockName(t.stock)}|${String(t.type || "").toUpperCase()}|${Number(t.qty || 0)}|${Number(t.price || 0).toFixed(4)}`;
+}
+
+function dedupeImportedRows(newRows, existingRows) {
+  const seen = new Set(
+    (existingRows || []).map(t => buildTxnIdentity(t))
+  );
+  const out = [];
+  let skipped = 0;
+  (newRows || []).forEach(t => {
+    const key = buildTxnIdentity(t);
+    if (seen.has(key)) {
+      skipped++;
+      return;
+    }
+    seen.add(key);
+    out.push(t);
+  });
+  return { rows: out, skipped };
+}
+
+function computeImportBrokerageRows(rowsToInsert, existingRows, settings) {
+  const out = [];
+  const dp = Number(settings?.dpCharge || 0);
+  const buyPct = Number(settings?.brokerageBuyPct || 0);
+  const sellPct = Number(settings?.brokerageSellPct || 0);
+
+  const sellDpDone = new Set();
+  (existingRows || []).forEach(t => {
+    if (String(t?.type || "").toUpperCase() !== "SELL") return;
+    const key = `${String(t.date || "")}|${normalizeStockName(t.stock)}`;
+    if (key.trim() !== "|") sellDpDone.add(key);
+  });
+
+  (rowsToInsert || []).forEach(t => {
+    const type = String(t.type || "").toUpperCase();
+    const qty = Number(t.qty || 0);
+    const price = Number(t.price || 0);
+    const tradeValue = qty * price;
+    const pctCharges = type === "BUY"
+      ? (buyPct / 100) * tradeValue
+      : (sellPct / 100) * tradeValue;
+    let dpCharge = 0;
+    if (type === "SELL") {
+      const key = `${String(t.date || "")}|${normalizeStockName(t.stock)}`;
+      if (!sellDpDone.has(key)) {
+        dpCharge = dp;
+        sellDpDone.add(key);
+      }
+    }
+    out.push({
+      ...t,
+      __brokerageComputed: Number(pctCharges + dpCharge),
+      __dpApplied: Number(dpCharge)
+    });
+  });
+  return out;
+}
+
+async function uploadImportedSnapshotToCloud() {
+  try {
+    if (typeof window === "undefined" || !window.APP_APPS_SCRIPT_URL) return { ok: false, reason: "no-url" };
+    const mod = await import("../client/cloudSync.js");
+    const userId = localStorage.getItem("activeUserId") || "";
+    const uploadPromise = mod.uploadToCloud(window.APP_APPS_SCRIPT_URL, { userId });
+    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ ok: false, reason: "timeout" }), 15000));
+    const res = await Promise.race([uploadPromise, timeoutPromise]);
+    return { ok: true, response: res };
+  } catch (err) {
+    console.warn("Cloud sync after import failed", err);
+    return { ok: false, reason: String(err?.message || err) };
+  }
+}
+
+async function importBrokerCsvFlow() {
+  const fileInput = document.getElementById("brokerImportFile");
+  const meta = document.getElementById("brokerImportMeta");
+  const mappingPanel = document.getElementById("brokerMappingPanel");
+  const file = fileInput?.files?.[0];
+  if (!file) {
+    if (typeof showToast === "function") showToast("Please choose a broker CSV file", "error");
+    return;
+  }
+
+  try {
+    const text = await file.text();
+    const { headers, rows } = parseCsvTextRows(text);
+    if (!headers.length || !rows.length) {
+      if (typeof showToast === "function") showToast("CSV appears empty or invalid", "error");
+      return;
+    }
+
+    const broker = detectBrokerByHeaders(headers);
+    let parsedRows = [];
+    let invalidRows = 0;
+    const reasonCounts = {};
+    const addReason = (k) => { reasonCounts[k] = (reasonCounts[k] || 0) + 1; };
+    const showProgress = async (msg) => {
+      if (typeof window !== "undefined" && typeof window.appShowLoading === "function") {
+        window.appShowLoading(msg);
+        await new Promise(r => setTimeout(r, 0));
+      }
+    };
+
+    if (broker === "zerodha") {
+      const fills = [];
+      for (let i = 0; i < rows.length; i++) {
+        const result = parseZerodhaFill(headers, rows[i]);
+        const currentStock = result?.stock || normalizeStockName(rows[i][0] || "");
+        if (i % 120 === 0 || i === rows.length - 1) {
+          await showProgress(`Processing ${i + 1}/${rows.length}: ${currentStock || "-"}`);
+        }
+        if (result?.row) {
+          fills.push(result.row);
+        } else {
+          invalidRows++;
+          addReason(result?.reason || "invalid_row");
+        }
+      }
+      const normalized = normalizeZerodhaFillsToOrders(fills);
+      parsedRows = normalized.rows || [];
+      if (meta) meta.textContent = `Detected: Zerodha | Fills: ${normalized.fillsCount} | Normalized orders: ${normalized.groupsCount}${invalidRows ? ` | Skipped invalid: ${invalidRows}` : ""}`;
+      if (mappingPanel) {
+        mappingPanel.style.display = "none";
+        mappingPanel.innerHTML = "";
+      }
+    } else {
+      const saved = getSavedMappingForHeaders(headers);
+      const suggested = suggestImportMapping(headers);
+      const prefilled = (saved && hasRequiredMapping(saved)) ? saved : suggested;
+      buildManualMappingUI(headers, prefilled);
+      if (meta) {
+        meta.textContent = (saved && hasRequiredMapping(saved))
+          ? "Detected: Custom broker format | Using your saved mapping."
+          : "Unknown broker format. Review auto-mapping and click Import.";
+      }
+      const chosenMapping = getManualMappingSelection();
+      if (!hasRequiredMapping(chosenMapping)) {
+        if (typeof showToast === "function") showToast("Map required columns and click Import again", "info");
+        return;
+      }
+      saveMappingForHeaders(headers, chosenMapping);
+      const mapped = parseManualMappedRows(rows);
+      if (mapped.error) {
+        if (typeof showToast === "function") showToast(mapped.error, "error");
+        return;
+      }
+      parsedRows = mapped.rows || [];
+      invalidRows = Number(mapped.invalidRows || 0);
+      Object.keys(mapped.reasonCounts || {}).forEach(k => addReason(k));
+      if (meta) {
+        meta.textContent = `Detected: Custom CSV | Parsed rows: ${parsedRows.length}${invalidRows ? ` | Skipped invalid: ${invalidRows}` : ""}`;
+      }
+    }
+
+    if (!parsedRows.length) {
+      const summary = [
+        `CSV rows: ${rows.length}`,
+        "Valid parsed: 0",
+        "Stored: 0",
+        "Duplicates skipped: 0",
+        `Invalid skipped: ${invalidRows}`
+      ].join("\n");
+      if (typeof showToast === "function") showToast("No valid transaction rows found", "error");
+      if (typeof window !== "undefined" && typeof window.appAlertDialog === "function") {
+        await window.appAlertDialog(summary, { title: "Import Summary", okText: "OK" });
+      }
+      return;
+    }
+
+    if (typeof window !== "undefined" && typeof window.appHideLoading === "function") {
+      window.appHideLoading();
+    }
+
+    const ok = (typeof window !== "undefined" && typeof window.appConfirmDialog === "function")
+      ? await window.appConfirmDialog(`Import ${parsedRows.length} transactions? Duplicates will be skipped.`, { title: "Confirm Broker Import", okText: "Import" })
+      : window.confirm(`Import ${parsedRows.length} transactions? Duplicates will be skipped.`);
+    if (!ok) return;
+    if (typeof window !== "undefined" && typeof window.appShowLoading === "function") {
+      window.appShowLoading("Saving imported transactions...");
+    }
+
+    const readReq = db.transaction("transactions", "readonly").objectStore("transactions").getAll();
+    readReq.onsuccess = async e => {
+      try {
+        const existing = e.target.result || [];
+        const deduped = dedupeImportedRows(parsedRows, existing);
+        const toInsert = deduped.rows;
+        if (!toInsert.length) {
+          const reasonText = Object.keys(reasonCounts).length
+            ? Object.keys(reasonCounts).map(k => `${k}: ${reasonCounts[k]}`).join(", ")
+            : "none";
+          const summary = [
+            `CSV rows: ${rows.length}`,
+            `Valid parsed: ${parsedRows.length}`,
+            "Stored: 0",
+            `Duplicates skipped: ${deduped.skipped}`,
+            `Invalid skipped: ${invalidRows}`,
+            `Skip reasons: ${reasonText}`
+          ].join("\n");
+          if (typeof showToast === "function") showToast(`No new rows. Skipped duplicates: ${deduped.skipped}`, "info");
+          if (typeof window !== "undefined" && typeof window.appAlertDialog === "function") {
+            await window.appAlertDialog(summary, { title: "Import Summary", okText: "OK" });
+          }
+          return;
+        }
+
+        getSettings(settings => {
+          const preparedRows = computeImportBrokerageRows(toInsert, existing, settings);
+          const tx = db.transaction("transactions", "readwrite");
+          const store = tx.objectStore("transactions");
+          const nowIso = new Date().toISOString();
+          let insertErrors = 0;
+          let dpAppliedCount = 0;
+
+          preparedRows.forEach(t => {
+            try {
+              const brokerage = Number(t.__brokerageComputed ?? calculateBrokerage(t.type, t.qty, t.price, settings));
+              const dpApplied = Number(t.__dpApplied || 0);
+              if (dpApplied > 0) dpAppliedCount++;
+              const req = store.add({
+                date: t.date,
+                stock: t.stock,
+                type: t.type,
+                qty: Number(t.qty),
+                price: Number(t.price),
+                reason: t.reason || "Broker Import",
+                note: t.note || "",
+                importSource: t.importSource || "csv",
+                importKey: t.importKey || "",
+                brokerage,
+                dpCharge: dpApplied,
+                createdAt: nowIso,
+                updatedAt: nowIso
+              });
+              req.onerror = () => { insertErrors++; };
+              ensureStockMappingRecord(t.stock);
+            } catch (err) {
+              insertErrors++;
+            }
+          });
+
+          tx.onerror = () => {
+            if (typeof showToast === "function") showToast("Import failed while writing transactions", "error");
+            if (typeof window !== "undefined" && typeof window.appHideLoading === "function") window.appHideLoading();
+          };
+          tx.onabort = () => {
+            if (typeof showToast === "function") showToast("Import aborted", "error");
+            if (typeof window !== "undefined" && typeof window.appHideLoading === "function") window.appHideLoading();
+          };
+          tx.oncomplete = async () => {
+            loadTransactions();
+            calculateHoldings();
+            calculatePnL();
+            loadDashboard();
+            refreshStockOptions();
+            const cloud = await uploadImportedSnapshotToCloud();
+            const reasonText = Object.keys(reasonCounts).length
+              ? Object.keys(reasonCounts).map(k => `${k}: ${reasonCounts[k]}`).join(", ")
+              : "none";
+            const storedCount = Math.max(0, toInsert.length - insertErrors);
+            const summary = [
+              `CSV rows: ${rows.length}`,
+              `Valid parsed: ${parsedRows.length}`,
+              `Stored: ${storedCount}`,
+              `Duplicates skipped: ${deduped.skipped}`,
+              `Invalid skipped: ${invalidRows}`,
+              `Write errors: ${insertErrors}`,
+              `DP applied rows: ${dpAppliedCount}`,
+              `Skip reasons: ${reasonText}`
+            ].join("\n");
+            if (typeof showToast === "function") {
+              showToast(
+                `Imported ${storedCount} rows (Skipped duplicates ${deduped.skipped}${invalidRows ? `, invalid ${invalidRows}` : ""}${insertErrors ? `, errors ${insertErrors}` : ""})${cloud.ok ? " | Synced to cloud" : ""}`,
+                insertErrors ? "info" : "success"
+              );
+            }
+            if (typeof window !== "undefined" && typeof window.appAlertDialog === "function") {
+              await window.appAlertDialog(summary, { title: "Import Summary", okText: "OK" });
+            }
+            if (meta) {
+              meta.textContent = `Imported ${storedCount} new rows. Skipped duplicates: ${deduped.skipped}${invalidRows ? ` | Invalid rows: ${invalidRows}` : ""}${insertErrors ? ` | Write errors: ${insertErrors}` : ""}.${cloud.ok ? " Synced to Google Sheet." : " Cloud sync pending."}`;
+            }
+            if (typeof window !== "undefined" && typeof window.appHideLoading === "function") {
+              window.appHideLoading();
+            }
+          };
+        });
+      } catch (err) {
+        if (typeof showToast === "function") showToast("Import failed: " + (err?.message || err), "error");
+        if (typeof window !== "undefined" && typeof window.appHideLoading === "function") window.appHideLoading();
+      }
+    };
+    readReq.onerror = () => {
+      if (typeof showToast === "function") showToast("Failed to read existing transactions for dedupe", "error");
+      if (typeof window !== "undefined" && typeof window.appHideLoading === "function") window.appHideLoading();
+    };
+  } finally {
+    if (typeof window !== "undefined" && typeof window.appHideLoading === "function") {
+      window.appHideLoading();
+    }
+  }
 }
 
 function exportTransactionsCSV() {
@@ -376,9 +1058,11 @@ async function importTransactionsCSV() {
 
 function initTransactionBackupControls() {
   const exportBtn = document.getElementById("txnExportBtn");
-  if (!exportBtn) return;
+  const importBtn = document.getElementById("brokerImportBtn");
+  if (!exportBtn && !importBtn) return;
 
-  exportBtn.addEventListener("click", exportTransactionsCSV);
+  exportBtn?.addEventListener("click", exportTransactionsCSV);
+  importBtn?.addEventListener("click", importBrokerCsvFlow);
 }
 
 /* =========================================================
@@ -481,6 +1165,7 @@ function initTransactionBackupControls() {
         }
 
         tx.oncomplete = () => {
+          ensureStockMappingRecord(stock);
           form.reset();
           editTxnId.value = "";
           dateInput.value = new Date().toISOString().split("T")[0];
@@ -708,6 +1393,13 @@ function toggleTxnHistory() {
             (a, l) => a + l.qty * (l.price + l.brokeragePerUnit),
             0
           );
+          const live = (typeof window !== "undefined" && typeof window.getLivePriceForStock === "function")
+            ? window.getLivePriceForStock(s)
+            : null;
+          const ltp = Number(live?.ltp);
+          const hasLive = Number.isFinite(ltp) && ltp > 0;
+          const currentValue = hasLive ? qty * ltp : null;
+          const unrealized = hasLive ? (currentValue - invested) : null;
           const days = Math.floor(
             (new Date() - parseDateLocal(map[s].cycleFirstBuy)) / 86400000
           );
@@ -720,6 +1412,14 @@ function toggleTxnHistory() {
                 Avg ₹${(invested / qty).toFixed(2)} |
                 Invested ₹${invested.toFixed(2)} |
                 Days ${days}
+              </div>
+              <div class="split-row mt-1">
+                <div class="left-col tiny-label">
+                  ${hasLive ? `LTP ₹${ltp.toFixed(2)} | Value ₹${currentValue.toFixed(2)}` : "LTP: -"}
+                </div>
+                <div class="right-col tiny-label ${hasLive && unrealized >= 0 ? "profit" : "loss"}">
+                  ${hasLive ? `U P/L ₹${unrealized.toFixed(2)}` : ""}
+                </div>
               </div>
             </div>`;
         }
@@ -1037,6 +1737,8 @@ function loadDashboard() {
          ============================================= */
       let totalInvested = 0;
       let activeHoldings = 0;
+      let liveUnrealizedTotal = 0;
+      let liveUnrealizedCount = 0;
 
       for (const stock in map) {
         const lots = map[stock].lots;
@@ -1044,10 +1746,22 @@ function loadDashboard() {
 
         activeHoldings++;
 
-        totalInvested += lots.reduce(
+        const invested = lots.reduce(
           (a, l) => a + l.qty * (l.price + l.brokeragePerUnit),
           0
         );
+        totalInvested += invested;
+
+        const qty = lots.reduce((a, l) => a + Number(l.qty || 0), 0);
+        const live = (typeof window !== "undefined" && typeof window.getLivePriceForStock === "function")
+          ? window.getLivePriceForStock(stock)
+          : null;
+        const ltp = Number(live?.ltp);
+        const hasLive = Number.isFinite(ltp) && ltp > 0;
+        if (hasLive && qty > 0) {
+          liveUnrealizedTotal += (qty * ltp) - invested;
+          liveUnrealizedCount++;
+        }
       }
 
       /* =============================================
@@ -1060,6 +1774,28 @@ function loadDashboard() {
       if (returnEl) {
         const returnPct = periodInvestedBase > 0 ? (periodPnL / periodInvestedBase) * 100 : 0;
         returnEl.textContent = `${toFiniteNumber(returnPct, 0).toFixed(2)}% return in 3 Months`;
+      }
+      const dashUnrealizedEl = document.getElementById("dashUnrealizedLoss");
+      const dashLiveRefreshEl = document.getElementById("dashLivePriceRefresh");
+      if (dashUnrealizedEl) {
+        if (liveUnrealizedCount > 0) {
+          dashUnrealizedEl.classList.remove("text-muted", "profit", "loss");
+          dashUnrealizedEl.classList.add(liveUnrealizedTotal >= 0 ? "profit" : "loss");
+          dashUnrealizedEl.textContent = `Live Unrealized: ₹${liveUnrealizedTotal.toFixed(2)}`;
+        } else {
+          dashUnrealizedEl.classList.remove("profit", "loss");
+          dashUnrealizedEl.classList.add("text-muted");
+          dashUnrealizedEl.textContent = "Live Unrealized: -";
+        }
+      }
+      if (dashLiveRefreshEl) {
+        const fetchedAt = (typeof window !== "undefined" && window.__livePriceState?.fetchedAt)
+          ? new Date(window.__livePriceState.fetchedAt)
+          : null;
+        const hasValidTime = fetchedAt && !Number.isNaN(fetchedAt.getTime());
+        dashLiveRefreshEl.textContent = hasValidTime
+          ? `Live refresh: ${fetchedAt.toLocaleString()}`
+          : "Live refresh: -";
       }
       const brkgBody = document.getElementById("brokerageBreakdownBody");
       if (brkgBody) {
@@ -1091,9 +1827,15 @@ function loadDashboard() {
               (a, l) => a + l.qty * (l.price + l.brokeragePerUnit),
               0
             );
+            const live = (typeof window !== "undefined" && typeof window.getLivePriceForStock === "function")
+              ? window.getLivePriceForStock(stock)
+              : null;
+            const ltp = Number(live?.ltp);
+            const hasLive = Number.isFinite(ltp) && ltp > 0;
+            const livePnl = hasLive ? (lots.reduce((a, l) => a + l.qty, 0) * ltp) - invested : null;
             const firstDate = lots[0].date;
             const days = Math.floor((new Date() - parseDateLocal(firstDate)) / 86400000);
-            return { stock, invested, days };
+            return { stock, invested, days, livePnl };
           })
           .filter(Boolean)
           .sort((a, b) => b.invested - a.invested);
@@ -1110,12 +1852,15 @@ function loadDashboard() {
                   <div class="txn-name">${r.stock}</div>
                   <div class="txn-sub">Hold Days: ${r.days}</div>
                 </div>
-                <div class="right-col">
-                  <div class="metric-strong text-primary">₹${toFiniteNumber(r.invested, 0).toFixed(2)}</div>
-                  <div class="tiny-label">Invested</div>
+                  <div class="right-col">
+                    <div class="metric-strong text-primary">₹${toFiniteNumber(r.invested, 0).toFixed(2)}</div>
+                    <div class="tiny-label">Invested</div>
+                    <div class="tiny-label ${r.livePnl == null ? "" : (r.livePnl >= 0 ? "profit" : "loss")}">
+                      ${r.livePnl == null ? "Live P/L: -" : `Live P/L: ₹${r.livePnl.toFixed(2)}`}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
           `).join("");
 
           const top2Invested = top2.reduce((a, r) => a + r.invested, 0);

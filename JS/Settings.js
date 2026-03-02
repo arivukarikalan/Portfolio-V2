@@ -334,7 +334,7 @@ function maybeShowWeeklyBackupReminder() {
 }
 
 function getAppsScriptUrl() {
-  const fallback = "https://script.google.com/macros/s/AKfycbxRX-y7kiDT4GqN18F6-e46pibw_gbJxmOHlglm4YCoUMjYdhVt-vbBj2fQgGkcQr8S/exec";
+  const fallback = "https://script.google.com/macros/s/AKfycbwkn6cNRV9UE2XehtFUdZoaySiDiOPqEXLC312FU3Ybbav5jNo5toEOuOvmzzAmiw5b/exec";
   return (typeof window !== "undefined" && window.APP_APPS_SCRIPT_URL) ? window.APP_APPS_SCRIPT_URL : fallback;
 }
 
@@ -590,6 +590,7 @@ function seedSettings() {
 
           avgLevel1Pct: 7,
           avgLevel2Pct: 12,
+          livePriceRefreshSec: 60,
 
           fdRatePct: 6.5,        // âœ… NEW
           inflationRatePct: 6.0, // âœ… NEW
@@ -623,6 +624,7 @@ function loadSettings() {
 
     document.getElementById("avgLevel1Pct").value = s.avgLevel1Pct;
     document.getElementById("avgLevel2Pct").value = s.avgLevel2Pct;
+    document.getElementById("livePriceRefreshSec").value = Math.max(60, Number(s.livePriceRefreshSec || 60));
 
     document.getElementById("fdRatePct").value = s.fdRatePct;           // âœ… NEW
     document.getElementById("inflationRatePct").value = s.inflationRatePct; // âœ… NEW
@@ -645,6 +647,7 @@ function saveSettings() {
 
     avgLevel1Pct: Number(avgLevel1Pct.value),
     avgLevel2Pct: Number(avgLevel2Pct.value),
+    livePriceRefreshSec: Math.max(60, Number(livePriceRefreshSec.value || 60)),
 
     fdRatePct: Number(fdRatePct.value),               // âœ… NEW
     inflationRatePct: Number(inflationRatePct.value), // âœ… NEW

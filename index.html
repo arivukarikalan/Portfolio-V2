@@ -20,6 +20,72 @@
   <link href="CSS/ui.css" rel="stylesheet">
   <link href="CSS/ui-theme.css" rel="stylesheet">
   <link href="CSS/ui-improvements.css" rel="stylesheet">
+  <style>
+    .profile-menu-wrap { position: relative; }
+    .profile-menu-btn {
+      width: 34px;
+      height: 34px;
+      border: 1px solid rgba(16, 24, 40, 0.12);
+      border-radius: 999px;
+      background: #fff;
+      color: #1f2937;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .profile-menu-panel {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      min-width: 240px;
+      background: #fff;
+      border: 1px solid rgba(16, 24, 40, 0.12);
+      border-radius: 12px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+      padding: 6px;
+      display: none;
+      z-index: 40;
+    }
+    .profile-menu-panel.show { display: block; }
+    .profile-menu-item {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      text-align: left;
+      border-radius: 8px;
+      padding: 9px 10px;
+      font-size: 0.9rem;
+      color: #374151;
+    }
+    .profile-menu-item:hover { background: rgba(59, 130, 246, 0.08); }
+    .profile-menu-item.danger { color: #b42318; }
+    body.dark .profile-menu-btn {
+      background: rgba(17, 24, 39, 0.9);
+      color: #e5e7eb;
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+    body.dark .profile-menu-panel {
+      background: #111827;
+      border-color: rgba(255, 255, 255, 0.14);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34);
+    }
+    body.dark .profile-menu-item { color: #e5e7eb; }
+    body.dark .profile-menu-item:hover { background: rgba(59, 130, 246, 0.18); }
+    body.dark .profile-menu-item.danger { color: #ff8d8d; }
+    .loss-booked-mini {
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 2px;
+    }
+    .unrealized-hero {
+      font-size: 1.5rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-top: 2px;
+    }
+  </style>
 </head>
 
 <body class="page-home">
@@ -45,7 +111,22 @@
      - Light / Dark mode toggle
      ===================================================== -->
      <div class="app-header">
-      <div class="app-title" id="appTitle">Portfolio</div>
+      <div class="d-flex align-items-center gap-2">
+        <div class="app-title" id="appTitle">Portfolio</div>
+        <div class="profile-menu-wrap">
+          <button id="profileMenuBtn" type="button" class="profile-menu-btn" title="Profile actions" aria-label="Profile actions">
+            <i class="bi bi-person-circle"></i>
+          </button>
+          <div id="profileMenuPanel" class="profile-menu-panel">
+            <button id="deleteTransactionsOnlyBtn" type="button" class="profile-menu-item danger">
+              <i class="bi bi-trash3 me-1"></i> Delete Transactions Only
+            </button>
+            <button id="deleteProfileAndDataBtn" type="button" class="profile-menu-item danger">
+              <i class="bi bi-person-x me-1"></i> Delete Profile + Transactions
+            </button>
+          </div>
+        </div>
+      </div>
       <div class="d-flex gap-2">
         <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
           <i class="bi bi-moon-stars"></i>
@@ -76,6 +157,69 @@
     } catch (e) {}
   })();
 
+  function closeProfileMenu() {
+    const panel = document.getElementById('profileMenuPanel');
+    if (panel) panel.classList.remove('show');
+  }
+
+  function initProfileMenu() {
+    const btn = document.getElementById('profileMenuBtn');
+    const panel = document.getElementById('profileMenuPanel');
+    const delTxnBtn = document.getElementById('deleteTransactionsOnlyBtn');
+    const delProfileBtn = document.getElementById('deleteProfileAndDataBtn');
+    if (!btn || !panel || !delTxnBtn || !delProfileBtn) return;
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      panel.classList.toggle('show');
+    });
+    document.addEventListener('click', (e) => {
+      if (!panel.classList.contains('show')) return;
+      if (panel.contains(e.target) || btn.contains(e.target)) return;
+      panel.classList.remove('show');
+    });
+
+    delTxnBtn.addEventListener('click', async () => {
+      closeProfileMenu();
+      const msg = 'Delete all transactions for current user? This cannot be undone.';
+      const ok = (typeof window.appConfirmDialog === 'function')
+        ? await window.appConfirmDialog(msg, { title: 'Delete Transactions', okText: 'Delete' })
+        : window.confirm(msg);
+      if (!ok) return;
+      try {
+        if (typeof window.appShowLoading === 'function') window.appShowLoading('Deleting transactions...');
+        const mod = await import('./client/profileManager.js');
+        await mod.deleteTransactionsOnly();
+        if (typeof showToast === 'function') showToast('Transactions deleted successfully', 'success');
+        if (typeof loadTransactions === 'function') loadTransactions();
+        if (typeof calculateHoldings === 'function') calculateHoldings();
+        if (typeof calculatePnL === 'function') calculatePnL();
+        if (typeof loadDashboard === 'function') loadDashboard();
+      } catch (err) {
+        if (typeof showToast === 'function') showToast('Delete failed: ' + (err.message || err), 'error');
+      } finally {
+        if (typeof window.appHideLoading === 'function') window.appHideLoading();
+      }
+    });
+
+    delProfileBtn.addEventListener('click', async () => {
+      closeProfileMenu();
+      const msg = 'Delete profile and all local portfolio data for this user?';
+      const ok = (typeof window.appConfirmDialog === 'function')
+        ? await window.appConfirmDialog(msg, { title: 'Delete Profile', okText: 'Delete Profile' })
+        : window.confirm(msg);
+      if (!ok) return;
+      try {
+        if (typeof window.appShowLoading === 'function') window.appShowLoading('Deleting profile...');
+        const mod = await import('./client/profileManager.js');
+        await mod.deleteProfileAndData();
+      } catch (err) {
+        if (typeof showToast === 'function') showToast('Delete profile failed: ' + (err.message || err), 'error');
+        if (typeof window.appHideLoading === 'function') window.appHideLoading();
+      }
+    });
+  }
+
   // Sign out: use centralized logout if available
   function signOut() {
     if (typeof window !== 'undefined' && typeof window.appLogout === 'function') {
@@ -86,6 +230,8 @@
       window.location.href = './client/profile.html';
     });
   }
+
+  initProfileMenu();
 </script>
 
 <!-- =====================================================
@@ -115,7 +261,9 @@
     <!-- Total Loss Booked (clickable -> Loss Report) -->
     <div class="stat-card metric-link" id="dashTotalLossCard" onclick="location.href='LossReport.html'">
       <div class="stat-label">Total Loss Booked</div>
-      <div class="stat-value data-negative" id="dashTotalLoss">&#8377;0.00</div>
+      <div class="loss-booked-mini data-negative" id="dashTotalLoss">&#8377;0.00</div>
+      <div class="unrealized-hero text-muted" id="dashUnrealizedLoss">Live Unrealized: -</div>
+      <div class="tiny-label mt-1 text-muted" id="dashLivePriceRefresh">Live refresh: -</div>
       <div class="tiny-label mt-1">Tap to view loss details</div>
     </div>
 
@@ -241,6 +389,7 @@
 <script src="JS/App.js"></script>
 <script src="JS/Settings.js"></script>
 <script src="JS/Transactions.js"></script>
+<script src="JS/LivePrices.js"></script>
 <script src="JS/LossReport.js"></script>
 
 <script>

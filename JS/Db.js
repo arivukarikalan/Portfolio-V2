@@ -35,7 +35,7 @@ function openDB() {
   }
   return new Promise((resolve, reject) => {
     const DB_NAME = getDbName();
-    const VERSION = 3;
+    const VERSION = 4;
 
     const request = indexedDB.open(DB_NAME, VERSION);
 
@@ -72,6 +72,15 @@ function openDB() {
           keyPath: "id",
           autoIncrement: true
         });
+      }
+
+      /* Store: Stock Name -> Ticker Mapping */
+      if (!db.objectStoreNames.contains("stock_mappings")) {
+        const mapStore = db.createObjectStore("stock_mappings", {
+          keyPath: "stock"
+        });
+        mapStore.createIndex("ticker", "ticker", { unique: false });
+        mapStore.createIndex("updatedAt", "updatedAt", { unique: false });
       }
     };
 

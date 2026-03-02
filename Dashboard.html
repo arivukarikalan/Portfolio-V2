@@ -78,6 +78,7 @@
       <div class="card text-center">
         <div class="section-title">Net P/L</div>
         <div id="dashNetPnL" class="fw-bold">&#8377;0</div>
+        <div id="dashLiveUnrealized" class="tiny-label text-muted">Live U P/L: -</div>
       </div>
     </div>
   </div>
@@ -195,6 +196,7 @@
 <script src="JS/App.js"></script>
 <script src="JS/Settings.js"></script>
 <script src="JS/Transactions.js"></script>
+<script src="JS/LivePrices.js"></script>
 <script src="JS/Dashboard.js"></script>
 
 <script>
@@ -213,9 +215,18 @@
   // Apply saved font-size
   (function(){ const s = localStorage.getItem('uiFontSize') || 'medium'; document.documentElement.classList.remove('size-small','size-medium','size-large'); document.documentElement.classList.add('size-'+s); })();
 
-  (function(){ const uid = localStorage.getItem('activeUserId'); if(!uid){ window.location.href = './client/profile.html'; return; } openDB().then(seedSettings).then(loadDashboardAnalytics); })();
+  (function(){
+    const uid = localStorage.getItem('activeUserId');
+    if(!uid){ window.location.href = './client/profile.html'; return; }
+    openDB()
+      .then(seedSettings)
+      .then(() => {
+        if (typeof initLivePrices === "function") initLivePrices();
+        loadDashboardAnalytics();
+        window.addEventListener("live-prices-updated", () => loadDashboardAnalytics());
+      });
+  })();
 </script>
 
 </body>
 </html>
-

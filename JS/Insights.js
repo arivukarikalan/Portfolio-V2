@@ -581,7 +581,14 @@ function loadInsights() {
             (new Date() - parseDateLocalInsight(s.cycleFirstBuyDate)) / 86400000
           );
           const qty = s.lots.reduce((a, l) => a + l.qty, 0);
-          const referencePrice = Number(s.cycleLastTxnPrice || s.cycleLastBuyPrice || 0);
+          const live = (typeof window !== "undefined" && typeof window.getLivePriceForStock === "function")
+            ? window.getLivePriceForStock(stock)
+            : null;
+          const liveLtp = Number(live?.ltp);
+          const hasLive = Number.isFinite(liveLtp) && liveLtp > 0;
+          const referencePrice = hasLive
+            ? liveLtp
+            : Number(s.cycleLastTxnPrice || s.cycleLastBuyPrice || 0);
           const currentValue = qty * referencePrice;
           const unrealized = currentValue - invested;
           const returnPct = invested > 0 ? (unrealized / invested) * 100 : 0;
@@ -1133,4 +1140,3 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
-

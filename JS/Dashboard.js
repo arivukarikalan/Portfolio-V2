@@ -201,6 +201,8 @@ function buildRealisedPnL(txns, settings) {
 function renderDashboardSummary(txns, filteredByStock, settings) {
   let activeHoldings = 0;
   let totalInvested = 0;
+  let liveUnrealized = 0;
+  let liveCount = 0;
   const map = buildActiveLots(txns, settings);
 
   for (const stock in map) {
@@ -208,10 +210,22 @@ function renderDashboardSummary(txns, filteredByStock, settings) {
     if (!lots.length) continue;
 
     activeHoldings++;
-    totalInvested += lots.reduce(
+    const invested = lots.reduce(
       (a, l) => a + l.qty * (l.price + l.brokeragePerUnit),
       0
     );
+    totalInvested += invested;
+
+    const qty = lots.reduce((a, l) => a + Number(l.qty || 0), 0);
+    const live = (typeof window !== "undefined" && typeof window.getLivePriceForStock === "function")
+      ? window.getLivePriceForStock(stock)
+      : null;
+    const ltp = Number(live?.ltp);
+    const hasLive = Number.isFinite(ltp) && ltp > 0;
+    if (hasLive && qty > 0) {
+      liveUnrealized += (qty * ltp) - invested;
+      liveCount++;
+    }
   }
 
   const netPnL = Object.values(filteredByStock)
@@ -220,6 +234,18 @@ function renderDashboardSummary(txns, filteredByStock, settings) {
   document.getElementById("dashInvested").innerText = `\u20B9${totalInvested.toFixed(2)}`;
   document.getElementById("dashHoldings").innerText = activeHoldings;
   document.getElementById("dashNetPnL").innerText = `\u20B9${netPnL.toFixed(2)}`;
+  const liveEl = document.getElementById("dashLiveUnrealized");
+  if (liveEl) {
+    if (liveCount > 0) {
+      liveEl.classList.remove("text-muted", "text-success", "text-danger");
+      liveEl.classList.add(liveUnrealized >= 0 ? "text-success" : "text-danger");
+      liveEl.textContent = `Live U P/L: \u20B9${liveUnrealized.toFixed(2)}`;
+    } else {
+      liveEl.classList.remove("text-success", "text-danger");
+      liveEl.classList.add("text-muted");
+      liveEl.textContent = "Live U P/L: -";
+    }
+  }
 }
 
 /* =========================================================

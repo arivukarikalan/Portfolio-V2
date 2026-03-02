@@ -77,6 +77,7 @@ html.size-large  { --base-font: 17px; }   /* large: noticeably bigger */
 .status-pill-mini { box-shadow:none; padding:4px 8px; font-weight:800; }
 .status-pill-mini.ok { background: rgba(34,197,94,0.12); color: var(--profit); }
 .status-pill-mini.bad { background: rgba(220,64,58,0.08); color: var(--loss); }
+.status-pill-mini.info { background: rgba(59,130,246,0.12); color: var(--accent); }
 
 /* Focus & accessibility: visible outlines for keyboard users */
 :focus { outline: 3px solid rgba(13,110,253,0.14); outline-offset:2px; }
@@ -266,6 +267,34 @@ body {
     flex-wrap: wrap !important;
     gap: 8px !important;
   }
+}
+
+/* Remove glass/transparency effect from top header action area */
+.app-header {
+  background: var(--card) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.app-header .btn {
+  background: var(--card-soft) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+.app-header .btn:hover,
+.app-header .btn:focus,
+.app-header .btn:active {
+  background: color-mix(in oklab, var(--card-soft) 86%, var(--blue)) !important;
+  border-color: color-mix(in oklab, var(--border) 72%, var(--blue)) !important;
+  box-shadow: none !important;
+}
+
+body.dark .app-header .btn {
+  background: color-mix(in oklab, var(--card) 90%, #13233d) !important;
+  border-color: color-mix(in oklab, var(--border) 84%, #2f4d74) !important;
 }
 
 /* Keep fixed bottom navigation visually stable across all pages */

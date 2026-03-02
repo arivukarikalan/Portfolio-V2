@@ -32,6 +32,9 @@
         <a href="Report.html" class="btn btn-sm btn-light" title="Report">
           <i class="bi bi-clipboard-data"></i>
         </a>
+        <a href="StockMappings.html" class="btn btn-sm btn-light" title="Stock Mappings">
+          <i class="bi bi-link-45deg"></i>
+        </a>
         <a href="Settings.html" class="btn btn-sm btn-light" title="Settings">
           <i class="bi bi-gear"></i>
         </a>
@@ -177,6 +180,29 @@
   </div>
 </section>
 
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h3 class="panel-title"><i class="bi bi-file-earmark-spreadsheet"></i> Broker CSV Import</h3>
+      <p class="panel-note">Import Zerodha directly or map columns for other brokers.</p>
+    </div>
+  </div>
+  <div class="panel-body tight">
+    <div class="row g-2">
+      <div class="col-12">
+        <input id="brokerImportFile" type="file" class="form-control" accept=".csv,text/csv">
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button id="brokerImportBtn" type="button" class="btn btn-primary flex-fill">
+          <i class="bi bi-upload"></i> Import Transactions
+        </button>
+      </div>
+    </div>
+    <div id="brokerImportMeta" class="tiny-label mt-2 text-muted"></div>
+    <div id="brokerMappingPanel" class="mt-2" style="display:none"></div>
+  </div>
+</section>
+
   <!-- =================================================
        FEATURE: Transaction History
        ================================================= -->
@@ -254,5 +280,3 @@
 
 </body>
 </html>
-
-

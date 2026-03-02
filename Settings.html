@@ -114,6 +114,24 @@
   </div>
   </section>
 
+  <!-- ================= LIVE PRICE REFRESH ================= -->
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3 class="panel-title"><i class="bi bi-arrow-repeat"></i> Live Price Refresh</h3>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label">Refresh Interval (seconds)</label>
+          <input id="livePriceRefreshSec" type="number" min="60" step="5" class="form-control">
+          <small class="text-muted">Minimum safe interval: 60 seconds (default 60s).</small>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ================= FD & INFLATION ================= -->
 <section class="panel">
     <div class="panel-head">
@@ -188,7 +206,7 @@
   </button>
 
   <!-- ================= DATA MANAGEMENT ================= -->
-<section class="panel">
+  <section class="panel">
     <div class="panel-head">
       <div>
         <h3 class="panel-title"><i class="bi bi-database"></i> Data Management</h3>
@@ -218,6 +236,16 @@
       </button>
     </div>
   </div>
+  </section>
+
+  <section class="panel" onclick="location.href='StockMappings.html'" style="cursor:pointer">
+    <div class="panel-body d-flex justify-content-between align-items-center">
+      <div>
+        <div class="section-title mb-1 mt-0">Stock Mappings</div>
+        <div class="text-muted">Map app stock names to NSE tickers for live price integration</div>
+      </div>
+      <i class="bi bi-chevron-right fs-4"></i>
+    </div>
   </section>
 
 </div>
