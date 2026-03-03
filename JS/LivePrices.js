@@ -9,6 +9,7 @@ const LIVE_PRICE_CACHE_KEY = "live_price_cache_v1";
 const LIVE_PRICE_LAST_FETCH_MS_KEY = "live_price_last_fetch_ms_v1";
 const LIVE_PRICE_MIN_REFRESH_MS = 60 * 1000; // safety floor (60s)
 const LIVE_PRICE_DEBUG = false; // set true only while diagnosing API issues
+const LIVE_PRICE_SETTINGS_BUMP_KEY = "live_price_settings_bump_v1";
 
 function normalizeLiveTicker(value) {
   const raw = String(value || "").trim().toUpperCase();
@@ -23,11 +24,75 @@ function getLivePriceEndpoint() {
   return window.APP_LIVE_PRICE_URL || window.APP_APPS_SCRIPT_URL || "";
 }
 
+function isLocalDevOrigin() {
+  try {
+    const host = String(window.location.hostname || "").toLowerCase();
+    return host === "127.0.0.1" || host === "localhost" || host === "";
+  } catch (e) {
+    return false;
+  }
+}
+
 function parseLivePriceJson(text) {
   try {
     return JSON.parse(text);
   } catch (e) {
     return null;
+  }
+}
+
+function jsonpRequest(url) {
+  return new Promise((resolve, reject) => {
+    if (typeof document === "undefined") {
+      reject(new Error("jsonp_unavailable"));
+      return;
+    }
+    const cbName = "__pt_lp_jsonp_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+    const u = new URL(url.toString());
+    u.searchParams.set("callback", cbName);
+    const script = document.createElement("script");
+    let done = false;
+    const cleanup = () => {
+      try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+      try { script.remove(); } catch (e) {}
+    };
+    window[cbName] = (data) => {
+      if (done) return;
+      done = true;
+      cleanup();
+      resolve(data);
+    };
+    script.onerror = () => {
+      if (done) return;
+      done = true;
+      cleanup();
+      reject(new Error("jsonp_failed"));
+    };
+    script.src = u.toString();
+    document.head.appendChild(script);
+    setTimeout(() => {
+      if (done) return;
+      done = true;
+      cleanup();
+      reject(new Error("jsonp_timeout"));
+    }, 15000);
+  });
+}
+
+async function fetchJsonWithLocalFallback(url) {
+  try {
+    const res = await fetch(url.toString(), { method: "GET" });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`Live price fetch failed: ${res.status} ${res.statusText} ${txt}`);
+    }
+    const text = await res.text();
+    const parsed = parseLivePriceJson(text);
+    if (!parsed) throw new Error("Invalid JSON from live price endpoint");
+    return parsed;
+  } catch (err) {
+    if (!isLocalDevOrigin()) throw err;
+    return await jsonpRequest(url);
   }
 }
 
@@ -167,16 +232,7 @@ async function fetchLiveRows(endpoint, tickers, opts = {}) {
   if (LIVE_PRICE_DEBUG || opts.debug) url.searchParams.set("debug", "1");
   if (tickers.length) url.searchParams.set("tickers", tickers.join(","));
   if (LIVE_PRICE_DEBUG || opts.debug) console.info("[LivePrices] request url:", url.toString());
-
-  const res = await fetch(url.toString(), { method: "GET" });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Live price fetch failed: ${res.status} ${res.statusText} ${txt}`);
-  }
-  const text = await res.text();
-  if (LIVE_PRICE_DEBUG || opts.debug) console.info("[LivePrices] raw response:", text);
-  const parsed = parseLivePriceJson(text);
-  if (!parsed) throw new Error("Invalid JSON from live price endpoint");
+  const parsed = await fetchJsonWithLocalFallback(url);
   if (LIVE_PRICE_DEBUG || opts.debug) {
     console.info("[LivePrices] scriptTag:", parsed?.scriptTag || "missing");
     if (parsed?.debug) console.info("[LivePrices] server debug:", parsed.debug);
@@ -281,4 +337,8 @@ if (typeof window !== "undefined") {
   window.refreshLivePrices = refreshLivePrices;
   window.getLivePriceForStock = getLivePriceForStock;
   window.initLivePrices = initLivePrices;
+  window.addEventListener("storage", (e) => {
+    if (e.key === LIVE_PRICE_SETTINGS_BUMP_KEY) initLivePrices();
+  });
+  window.addEventListener("live-price-settings-updated", () => initLivePrices());
 }

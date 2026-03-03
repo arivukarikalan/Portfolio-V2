@@ -1,9 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Sign in / Create Profile</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="icon" type="image/svg+xml" href="../Assets/Icons/app-favicon.svg">
   <link href="../CSS/ui.css" rel="stylesheet">
   <link href="../CSS/ui-improvements.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -56,7 +57,7 @@
   <!-- Ensure shared Apps Script URL is available before the module loads.
        Replace the URL below with your deployed web-app /exec URL if different. -->
   <script>
-    window.APP_APPS_SCRIPT_URL = window.APP_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbwkn6cNRV9UE2XehtFUdZoaySiDiOPqEXLC312FU3Ybbav5jNo5toEOuOvmzzAmiw5b/exec';
+    window.APP_APPS_SCRIPT_URL = window.APP_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzkSMNGyDU7yk-pMSvF1wsEVetBJaQepnqOV8DbjbdoxS37TfszxMeGNufhe3N9viw/exec';
   </script>
 </head>
 <body class="profile-auth-page">
@@ -286,6 +287,10 @@
             if (res.ok) {
               status('Login successful. Redirecting to app...', false, 'success');
               setTimeout(() => window.location.href = '../index.html', 500);
+            } else if (res.reason === 'cloud_unreachable') {
+              const msg = `Cloud endpoint not reachable. Check Apps Script deployment/access. Endpoint: ${res.endpoint || 'n/a'}`;
+              status(msg, true);
+              console.error('[Auth] cloud_unreachable', res);
             } else if (res.notFound) {
               status('No cloud snapshot found for this userId. Create a profile first.', true);
             } else if (res.reason === 'user_mismatch') {
@@ -362,5 +367,6 @@
   </script>
 </body>
 </html>
+
 
 

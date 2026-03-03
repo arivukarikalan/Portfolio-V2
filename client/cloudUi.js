@@ -10,7 +10,7 @@ import { uploadToCloud, restoreFromCloud } from './cloudSync.js';
 
 // Replace or set this URL at runtime (do not hardcode secrets)
 // Default set to the URL you provided; can be overridden at runtime by setting window.APP_APPS_SCRIPT_URL
-const APPS_SCRIPT_URL = window.APP_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbwkn6cNRV9UE2XehtFUdZoaySiDiOPqEXLC312FU3Ybbav5jNo5toEOuOvmzzAmiw5b/exec';
+const APPS_SCRIPT_URL = window.APP_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzkSMNGyDU7yk-pMSvF1wsEVetBJaQepnqOV8DbjbdoxS37TfszxMeGNufhe3N9viw/exec';
 
 // Expose for console/debug use
 if (typeof window !== 'undefined') window.APP_APPS_SCRIPT_URL = window.APP_APPS_SCRIPT_URL || APPS_SCRIPT_URL;
@@ -302,3 +302,4 @@ if (typeof window !== 'undefined') {
 
 /* Export for manual wiring if needed */
 export { wireButtons, showToast };
+

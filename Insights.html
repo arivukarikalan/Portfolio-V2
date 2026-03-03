@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -9,34 +9,20 @@
        ===================================================== -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-  <link rel="icon" type="image/png" href="Assets/Icons/Favicon.png">
+  <link rel="icon" type="image/svg+xml" href="Assets/Icons/app-favicon.svg">
   <!-- =====================================================
        FEATURE: Application UI Styles
        ===================================================== -->
   <link href="CSS/ui.css" rel="stylesheet">
   <link href="CSS/ui-theme.css" rel="stylesheet">
   <link href="CSS/ui-improvements.css" rel="stylesheet">
+  <link href="CSS/ui-shell.css" rel="stylesheet">
+  <link href="CSS/advanced.css" rel="stylesheet">
+  <script src="JS/common-ui.js"></script>
+  <script src="JS/ui-shell.js"></script>
 </head>
 
 <body class="page-insights">
-
-<!-- =====================================================
-     FEATURE: Header Bar
-     ===================================================== -->
-     <div class="app-header">
-        <div class="app-title">Insights</div>
-        <div class="d-flex gap-2">
-          <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
-            <i class="bi bi-moon-stars"></i>
-          </button>
-          <a href="Report.html" class="btn btn-sm btn-light" title="Report">
-            <i class="bi bi-clipboard-data"></i>
-          </a>
-          <a href="Settings.html" class="btn btn-sm btn-light" title="Settings">
-            <i class="bi bi-gear"></i>
-          </a>
-        </div>
-      </div>
 
 <!-- =====================================================
      FEATURE: Insights Content
@@ -44,8 +30,18 @@
 <div class="container page-shell">
 
   <section class="hero">
-    <h2 class="hero-title">Portfolio Insights</h2>
-    <p class="hero-sub">Read your allocation pressure and average-down readiness in one view.</p>
+    <h2 class="hero-title">Insights Dashboard</h2>
+    <p class="hero-sub">Unified view for allocation, exit planning, and average-down readiness.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h3 class="panel-title"><i class="bi bi-speedometer2"></i> Insights Overview</h3>
+    </div>
+    <div class="panel-body tight">
+      <div id="insightsOverviewGrid" class="adv-grid mb-2"></div>
+      <div id="insightsQualityChart" class="chart-wrap"></div>
+    </div>
   </section>
 
   <!-- =================================================
@@ -61,6 +57,7 @@
       </button>
     </div>
     <div class="panel-body tight" id="allocationSection" style="display:none">
+      <div id="allocationChartWrap" class="mb-2"></div>
       <div id="allocationList"></div>
     </div>
   </section>
@@ -90,7 +87,7 @@
           <input id="exitSellQty" type="number" min="1" class="form-control form-control-sm" placeholder="Qty">
         </div>
         <div class="col-4">
-          <label class="tiny-label">Sell Price (₹)</label>
+          <label class="tiny-label">Sell Price (?)</label>
           <input id="exitSellPrice" type="number" step="0.01" class="form-control form-control-sm" placeholder="Price">
         </div>
       </div>
@@ -141,87 +138,7 @@
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3 class="panel-title"><i class="bi bi-journal-text"></i> Reason Outcome Review</h3>
-        <p class="panel-note">Which buy reasons actually worked over 30 / 60 / 90 day holds.</p>
-      </div>
-      <button class="icon-toggle-btn" type="button" aria-label="Toggle Reason Outcome Review" onclick="toggleInsightsSection('reasonOutcomePanel', this)">
-        <i class="bi bi-chevron-down"></i>
-      </button>
-    </div>
-    <div class="panel-body tight" id="reasonOutcomePanel" style="display:none">
-      <div id="reasonOutcomeList"></div>
-    </div>
-  </section>
-
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3 class="panel-title"><i class="bi bi-speedometer2"></i> Capital Efficiency Ranking</h3>
-        <p class="panel-note">Ranks stocks by return%, holding time, and deployed capital.</p>
-      </div>
-      <button class="icon-toggle-btn" type="button" aria-label="Toggle Capital Efficiency Ranking" onclick="toggleInsightsSection('capitalEfficiencyPanel', this)">
-        <i class="bi bi-chevron-down"></i>
-      </button>
-    </div>
-    <div class="panel-body tight" id="capitalEfficiencyPanel" style="display:none">
-      <div id="capitalEfficiencyList"></div>
-    </div>
-  </section>
-
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3 class="panel-title"><i class="bi bi-clock-history"></i> Holding Period Edge</h3>
-        <p class="panel-note">Find which holding window gives your best realized return discipline.</p>
-      </div>
-      <button class="icon-toggle-btn" type="button" aria-label="Toggle Holding Period Edge" onclick="toggleInsightsSection('holdingEdgePanel', this)">
-        <i class="bi bi-chevron-down"></i>
-      </button>
-    </div>
-    <div class="panel-body tight" id="holdingEdgePanel" style="display:none">
-      <div id="holdingEdgeList"></div>
-    </div>
-  </section>
-
-  <section class="panel" onclick="location.href='analytics.html'" style="cursor:pointer">
-    <div class="panel-body d-flex justify-content-between align-items-center">
-      <div>
-        <div class="section-title mt-0 mb-1">Analytics</div>
-        <div class="text-muted">Open FD vs Inflation analytics</div>
-      </div>
-      <i class="bi bi-chevron-right fs-5"></i>
-    </div>
-  </section>
-
 </div>
-
-<!-- =====================================================
-     FEATURE: Bottom Navigation
-     ===================================================== -->
-     <nav class="bottom-nav">
-        <a href="index.html">
-          <i class="bi bi-grid"></i>
-          Home
-        </a>
-        <a href="Transactions.html">
-          <i class="bi bi-arrow-left-right"></i>
-          Txn
-        </a>
-        <a href="Holdings.html">
-          <i class="bi bi-briefcase"></i>
-          Hold
-        </a>
-        <a href="Pnl.html">
-          <i class="bi bi-bar-chart"></i>
-          P/L
-        </a>
-        <a class="active" href="Insights.html">
-          <i class="bi bi-lightbulb"></i>
-          Insights
-        </a></nav>
 
 <!-- =====================================================
      FEATURE: Script Includes
@@ -232,42 +149,22 @@
      <script src="JS/Transactions.js"></script>
      <script src="JS/LivePrices.js"></script>
      <script src="JS/Insights.js"></script>
-
-<script>
-  /* =====================================================
-     FEATURE: Theme Toggle
-     ===================================================== */
-  function toggleTheme() {
-    document.body.classList.toggle("dark");
-    localStorage.setItem(
-      "theme",
-      document.body.classList.contains("dark") ? "dark" : "light"
-    );
-  }
-
-  if (localStorage.getItem("theme") === "dark") {
-    document.body.classList.add("dark");
-  }
-
-  // Apply saved font-size
-  (function(){ const s = localStorage.getItem('uiFontSize') || 'medium'; document.documentElement.classList.remove('size-small','size-medium','size-large'); document.documentElement.classList.add('size-'+s); })();
-
-  /* =====================================================
-     FEATURE: Load Insights Data
-     ===================================================== */
-  (function(){
-    const uid = localStorage.getItem('activeUserId');
-    if(!uid){ window.location.href = './client/profile.html'; return; }
-    openDB()
-      .then(seedSettings)
-      .then(() => {
-        if (typeof initLivePrices === "function") initLivePrices();
-        loadInsights();
-        window.addEventListener("live-prices-updated", () => loadInsights());
-      });
-  })();
-</script>
+     <script>
+      (function(){
+        const uid = localStorage.getItem('activeUserId');
+        if(!uid){ window.location.href = './client/profile.html'; return; }
+        openDB()
+          .then(seedSettings)
+          .then(() => {
+            if (typeof initLivePrices === "function") initLivePrices();
+            if (typeof loadInsights === "function") loadInsights();
+            window.addEventListener("live-prices-updated", () => {
+              if (typeof loadInsights === "function") loadInsights();
+            });
+          })
+          .catch(e => console.error('insights init error', e));
+      })();
+     </script>
 
 </body>
 </html>
-

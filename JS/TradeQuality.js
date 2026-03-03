@@ -69,7 +69,7 @@ function loadTradeQuality() {
           while (sellRemaining > 0 && s.lots.length) {
             const lot = s.lots[0];
             const used = Math.min(lot.qty, sellRemaining);
-            const invested = used * (lot.price + (lot.brokeragePerUnit || 0));
+            const invested = used * (lot.price + (lot.brkgPerUnit || 0));
             // proportionate sell brokerage
             const usedSellBrkg = qty > 0 ? (brkgTotal * (used / qty)) : 0;
             const sellValue = used * price;
@@ -123,7 +123,7 @@ function loadTradeQuality() {
         const lossValues = cycles.map(c => c.realizedNet).filter(v => v < 0);
         const highestLoss = lossValues.length ? Math.min(...lossValues) : 0;
         // current invested (active lots remaining) approximate
-        const investedCurrent = (s.lots || []).reduce((a, l) => a + l.qty * (l.price + (l.brokeragePerUnit || 0)), 0);
+        const investedCurrent = (s.lots || []).reduce((a, l) => a + l.qty * (l.price + (l.brkgPerUnit || 0)), 0);
         const referencePrice = s.lastPrice || (s.lots[0]?.price || 0);
         return { stock, cyclesCount, wins, losses, avgPL, avgHold, highestLoss, investedCurrent, referencePrice, cycles, allTxns: s.allTxns || [] };
       });
@@ -236,7 +236,7 @@ function loadTradeQuality() {
             <div class="table-responsive txn-table">
               <table class="table table-sm table-bordered">
                 <thead>
-                  <tr><th>Date</th><th>Type</th><th class="text-end">Qty</th><th class="text-end">Price</th><th class="text-end">Brokerage</th><th class="text-end">Net (sell gross - brkg)</th></tr>
+                  <tr><th>Date</th><th>Type</th><th class="text-end">Qty</th><th class="text-end">Price</th><th class="text-end">Brokerage</th><th class="text-end">Realized Net</th></tr>
                 </thead>
                 <tbody>${txRows || `<tr><td colspan="6" class="text-center text-muted">No transactions</td></tr>`}</tbody>
               </table>

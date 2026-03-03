@@ -161,6 +161,23 @@ function buildActiveSnapshotForChecklist(txns, settings) {
   return { map, totalActiveInvested };
 }
 
+function computeAvailableQtyForStock(txns, stock) {
+  const wanted = normalizeStockName(stock);
+  if (!wanted) return 0;
+  let qty = 0;
+  (txns || [])
+    .slice()
+    .sort((a, b) => parseDateLocal(a.date) - parseDateLocal(b.date))
+    .forEach(t => {
+      if (normalizeStockName(t.stock) !== wanted) return;
+      const q = toFiniteNumber(t.qty, 0);
+      const ty = String(t.type || "").toUpperCase();
+      if (ty === "BUY") qty += q;
+      else if (ty === "SELL") qty -= q;
+    });
+  return Math.max(0, qty);
+}
+
 function runPreBuyChecklist() {
   const type = document.getElementById("txnType")?.value || "BUY";
   const panel = document.getElementById("preBuyChecklist");
@@ -1057,11 +1074,8 @@ async function importTransactionsCSV() {
 }
 
 function initTransactionBackupControls() {
-  const exportBtn = document.getElementById("txnExportBtn");
   const importBtn = document.getElementById("brokerImportBtn");
-  if (!exportBtn && !importBtn) return;
-
-  exportBtn?.addEventListener("click", exportTransactionsCSV);
+  if (!importBtn) return;
   importBtn?.addEventListener("click", importBrokerCsvFlow);
 }
 
@@ -1129,61 +1143,78 @@ function initTransactionBackupControls() {
       }
   
       getSettings(settings => {
-        const brokerage = calculateBrokerage(type, qty, price, settings);
-  
-        const data = {
-          date,
-          stock,
-          type,
-          qty,
-          price,
-          reason,
-          note,
-          brokerage,   // Brokerage includes DP for SELL
-          dpCharge: 0  // Stored only for display (not re-added)
-        };
-  
-        const tx = db.transaction("transactions", "readwrite");
-        const store = tx.objectStore("transactions");
-        const nowIso = new Date().toISOString();
+        db.transaction("transactions", "readonly")
+          .objectStore("transactions")
+          .getAll().onsuccess = ev => {
+            const all = ev.target.result || [];
+            const currentEditId = Number(editId || 0);
+            const baseline = all.filter(t => Number(t.id || 0) !== currentEditId);
 
-        if (editId) {
-          store.get(Number(editId)).onsuccess = ev => {
-            const prev = ev.target.result || {};
-            store.put({
-              ...data,
-              id: Number(editId),
-              createdAt: prev.createdAt || nowIso,
-              updatedAt: nowIso
-            });
+            if (type === "SELL") {
+              const availableQty = computeAvailableQtyForStock(baseline, stock);
+              if (qty > availableQty) {
+                if (typeof showToast === "function") {
+                  showToast(`Invalid qty. Available holding for ${stock}: ${availableQty}`, "error", 4200);
+                }
+                return;
+              }
+            }
+
+            const brokerage = calculateBrokerage(type, qty, price, settings);
+            const data = {
+              date,
+              stock,
+              type,
+              qty,
+              price,
+              reason,
+              note,
+              brokerage,   // Brokerage includes DP for SELL
+              dpCharge: 0  // Stored only for display (not re-added)
+            };
+
+            const tx = db.transaction("transactions", "readwrite");
+            const store = tx.objectStore("transactions");
+            const nowIso = new Date().toISOString();
+
+            if (editId) {
+              store.get(Number(editId)).onsuccess = iev => {
+                const prev = iev.target.result || {};
+                store.put({
+                  ...data,
+                  id: Number(editId),
+                  createdAt: prev.createdAt || nowIso,
+                  updatedAt: nowIso
+                });
+              };
+            } else {
+              store.add({
+                ...data,
+                createdAt: nowIso
+              });
+            }
+
+            tx.oncomplete = () => {
+              ensureStockMappingRecord(stock);
+              form.reset();
+              editTxnId.value = "";
+              dateInput.value = new Date().toISOString().split("T")[0];
+              if (checklistPanel) {
+                checklistPanel.style.display = "none";
+                checklistPanel.innerHTML = "";
+              }
+
+              loadTransactions();
+              calculateHoldings();
+              calculatePnL();
+              loadDashboard();
+              refreshStockOptions();
+
+              if (typeof showToast === "function") {
+                showToast(editId ? "Transaction updated successfully" : "Transaction saved successfully");
+              }
+            };
           };
-        } else {
-          store.add({
-            ...data,
-            createdAt: nowIso
-          });
-        }
-
-        tx.oncomplete = () => {
-          ensureStockMappingRecord(stock);
-          form.reset();
-          editTxnId.value = "";
-          dateInput.value = new Date().toISOString().split("T")[0];
-          if (checklistPanel) {
-            checklistPanel.style.display = "none";
-            checklistPanel.innerHTML = "";
-          }
-  
-          loadTransactions();
-          calculateHoldings();
-          calculatePnL();
-          loadDashboard();
-          refreshStockOptions();
-
-          if (typeof showToast === "function") {
-            showToast(editId ? "Transaction updated successfully" : "Transaction saved successfully");
-          }
-        };
       });
     };
   }
@@ -1532,7 +1563,59 @@ function applyPnLFilters(data) {
     return true;
   });
 
+  renderPnLVisualSummary(filtered);
   renderGroupedPnL(filtered);
+}
+
+function renderPnLVisualSummary(data) {
+  const grid = document.getElementById("pnlSummaryGrid");
+  const chart = document.getElementById("pnlMonthlyChart");
+  if (!grid || !chart) return;
+
+  if (!Array.isArray(data) || !data.length) {
+    grid.innerHTML = `
+      <div class="stat-card"><div class="stat-label">Realized Net</div><div class="stat-value">₹0.00</div></div>
+      <div class="stat-card"><div class="stat-label">Win / Loss</div><div class="stat-value">0 / 0</div></div>
+      <div class="stat-card"><div class="stat-label">Avg Return</div><div class="stat-value">0.00%</div></div>
+      <div class="stat-card"><div class="stat-label">Avg Hold</div><div class="stat-value">0d</div></div>
+    `;
+    chart.innerHTML = `<div class="text-muted">No realized trades in selected range.</div>`;
+    return;
+  }
+
+  const totalNet = data.reduce((a, t) => a + Number(t.net || 0), 0);
+  const wins = data.filter(t => Number(t.net || 0) >= 0).length;
+  const losses = data.length - wins;
+  const avgReturn = data.reduce((a, t) => a + Number(t.returnPct || 0), 0) / Math.max(1, data.length);
+  const avgHold = data.reduce((a, t) => a + Number(t.holdDays || 0), 0) / Math.max(1, data.length);
+
+  grid.innerHTML = `
+    <div class="stat-card"><div class="stat-label">Realized Net</div><div class="stat-value ${totalNet >= 0 ? "profit" : "loss"}">₹${totalNet.toFixed(2)}</div></div>
+    <div class="stat-card"><div class="stat-label">Win / Loss</div><div class="stat-value">${wins} / ${losses}</div></div>
+    <div class="stat-card"><div class="stat-label">Avg Return</div><div class="stat-value ${avgReturn >= 0 ? "profit" : "loss"}">${avgReturn.toFixed(2)}%</div></div>
+    <div class="stat-card"><div class="stat-label">Avg Hold</div><div class="stat-value">${avgHold.toFixed(0)}d</div></div>
+  `;
+
+  const monthMap = {};
+  data.forEach(t => {
+    const m = String(t.date || "").slice(0, 7);
+    if (!m) return;
+    monthMap[m] = (monthMap[m] || 0) + Number(t.net || 0);
+  });
+  const months = Object.keys(monthMap).sort();
+  const maxAbs = Math.max(1, ...months.map(m => Math.abs(Number(monthMap[m] || 0))));
+  chart.innerHTML = months.map(m => {
+    const v = Number(monthMap[m] || 0);
+    const w = (Math.abs(v) / maxAbs) * 100;
+    const barCls = v >= 0 ? "profit" : "loss";
+    return `
+      <div class="adv-bar-row">
+        <div class="adv-bar-label">${m}</div>
+        <div class="adv-bar-track"><div class="adv-bar ${barCls}" style="width:${w}%"></div></div>
+        <div class="adv-bar-value ${barCls}">₹${v.toFixed(2)}</div>
+      </div>
+    `;
+  }).join("");
 }
   
 /* ================= GROUPED P/L RENDER ================= */

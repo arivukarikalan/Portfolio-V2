@@ -6,28 +6,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-  <link rel="icon" type="image/png" href="Assets/Icons/Favicon.png">
+  <link rel="icon" type="image/svg+xml" href="Assets/Icons/app-favicon.svg">
   <link href="CSS/ui.css" rel="stylesheet">
   <link href="CSS/ui-theme.css" rel="stylesheet">
   <link href="CSS/ui-improvements.css" rel="stylesheet">
+  <link href="CSS/ui-shell.css" rel="stylesheet">
+  <script src="JS/common-ui.js"></script>
+  <script src="JS/ui-shell.js"></script>
 </head>
 
 <body class="page-report">
-  <div class="app-header">
-    <div class="app-title">Report</div>
-    <div class="d-flex gap-2">
-      <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
-        <i class="bi bi-moon-stars"></i>
-      </button>
-      <a href="index.html" class="btn btn-sm btn-light" title="Home">
-        <i class="bi bi-house"></i>
-      </a>
-      <a href="Settings.html" class="btn btn-sm btn-light" title="Settings">
-        <i class="bi bi-gear"></i>
-      </a>
-    </div>
-  </div>
-
   <div class="container page-shell">
     <section class="hero">
       <h2 class="hero-title">Transaction Report</h2>
@@ -77,41 +65,9 @@
       </div>
       <div id="reportSummary" class="tiny-label mt-2"></div>
     </section>
-  </div>
-
-  <nav class="bottom-nav">
-    <a href="index.html"><i class="bi bi-grid"></i>Home</a>
-    <a href="Transactions.html"><i class="bi bi-arrow-left-right"></i>Txn</a>
-    <a href="Holdings.html"><i class="bi bi-briefcase"></i>Hold</a>
-    <a href="Pnl.html"><i class="bi bi-bar-chart"></i>P/L</a>
-    <a href="Insights.html"><i class="bi bi-lightbulb"></i>Insights</a>
-  </nav>
-
-  <script src="JS/Db.js"></script>
+  </div><script src="JS/Db.js"></script>
 <script src="JS/App.js"></script>
   <script src="JS/Settings.js"></script>
   <script src="JS/Report.js"></script>
-  <script>
-    function toggleTheme() {
-      document.body.classList.toggle("dark");
-      localStorage.setItem(
-        "theme",
-        document.body.classList.contains("dark") ? "dark" : "light"
-      );
-    }
-
-    if (localStorage.getItem("theme") === "dark") {
-      document.body.classList.add("dark");
-    }
-
-    // Apply saved font-size
-    (function(){ 
-      const s = localStorage.getItem('uiFontSize') || 'medium'; 
-      document.documentElement.classList.remove('size-small','size-medium','size-large'); 
-      document.documentElement.classList.add('size-'+s); 
-    })();
-
-    (function(){ const uid = localStorage.getItem('activeUserId'); if(!uid){ window.location.href = './client/profile.html'; return; } openDB().then(seedSettings).then(loadReportPage); })();
-  </script>
-</body>
+  </body>
 </html>

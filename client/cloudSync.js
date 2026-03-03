@@ -34,26 +34,85 @@ const DEVICE_ID_KEY = 'pt_device_id';
 const APP_NAME = 'PortfolioTracker';
 const APP_VERSION = '1.0';
 
+function isLocalDevOrigin() {
+  try {
+    if (typeof window === 'undefined') return false;
+    const host = String(window.location.hostname || '').toLowerCase();
+    return host === '127.0.0.1' || host === 'localhost' || host === '';
+  } catch (e) {
+    return false;
+  }
+}
+
+function jsonpRequest(url) {
+  return new Promise((resolve, reject) => {
+    if (typeof document === 'undefined') {
+      reject(new Error('jsonp_unavailable'));
+      return;
+    }
+    const cbName = '__pt_jsonp_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const u = new URL(url.toString());
+    u.searchParams.set('callback', cbName);
+    const script = document.createElement('script');
+    let done = false;
+    const cleanup = () => {
+      try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+      try { script.remove(); } catch (e) {}
+    };
+    window[cbName] = (data) => {
+      if (done) return;
+      done = true;
+      cleanup();
+      resolve(data);
+    };
+    script.onerror = () => {
+      if (done) return;
+      done = true;
+      cleanup();
+      reject(new Error('jsonp_failed'));
+    };
+    script.src = u.toString();
+    document.head.appendChild(script);
+    setTimeout(() => {
+      if (done) return;
+      done = true;
+      cleanup();
+      reject(new Error('jsonp_timeout'));
+    }, 15000);
+  });
+}
+
+async function fetchJsonWithLocalFallback(url, opts = {}) {
+  try {
+    const res = await fetch(url.toString(), { method: 'GET', signal: opts.signal });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`Fetch failed: ${res.status} ${res.statusText} ${txt}`);
+    }
+    const text = await res.text();
+    let parsed = null;
+    try {
+      parsed = JSON.parse(text);
+    } catch (e) {
+      const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+      if (jsonMatch) {
+        try { parsed = JSON.parse(jsonMatch[0]); } catch (e2) { parsed = null; }
+      }
+    }
+    if (!parsed) throw new Error('Invalid JSON response');
+    return parsed;
+  } catch (err) {
+    if (!isLocalDevOrigin()) throw err;
+    return await jsonpRequest(url);
+  }
+}
+
 async function fetchAllCloudRows(appsScriptUrl, opts = {}) {
   const url = new URL(appsScriptUrl);
   url.searchParams.set('mode', 'all');
   if (opts.userId) url.searchParams.set('userId', opts.userId);
 
-  const res = await fetch(url.toString(), { method: 'GET', signal: opts.signal });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => '');
-    throw new Error(`Fetch all failed: ${res.status} ${res.statusText} ${txt}`);
-  }
-  const text = await res.text();
-  let parsed = null;
-  try {
-    parsed = JSON.parse(text);
-  } catch (e) {
-    const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-    if (jsonMatch) {
-      try { parsed = JSON.parse(jsonMatch[0]); } catch (e2) { parsed = null; }
-    }
-  }
+  const parsed = await fetchJsonWithLocalFallback(url, opts);
   if (!parsed) throw new Error('Invalid JSON in cloud all response');
   return Array.isArray(parsed?.rows) ? parsed.rows : [];
 }
@@ -268,7 +327,7 @@ export async function uploadToCloud(appsScriptUrl, opts = {}) {
   // attach profile metadata if available (prefer opts, fallback to current context)
   const userIdToSend = opts.userId || CURRENT_USER_ID || null;
   let recoveryKeyHashToSend = opts.recoveryKeyHash || null;
-  if (!recoveryKeyHashToSend && userIdToSend) {
+  if (!recoveryKeyHashToSend && userIdToSend && !opts.skipRecoveryHashLookup) {
     recoveryKeyHashToSend = await getLatestRecoveryKeyHashForUser(appsScriptUrl, userIdToSend, opts);
   }
   if (!recoveryKeyHashToSend && typeof window !== 'undefined') {
@@ -387,28 +446,9 @@ export async function fetchLatestFromCloud(appsScriptUrl, opts = {}) {
     // pass userId to server filter if provided
     if (opts.userId) url.searchParams.set('userId', opts.userId);
 
-    const res = await fetch(url.toString(), { method: 'GET', signal: opts.signal });
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      throw new Error(`Fetch failed: ${res.status} ${res.statusText} ${txt}`);
-    }
-    const text = await res.text();
-    if (!text) throw new Error('Empty response from cloud');
+    const parsed = await fetchJsonWithLocalFallback(url, opts);
 
-    // existing tolerant parsing/normalization logic follows...
-    const rawLatest = text;
-
-    let parsed;
-    try {
-      parsed = JSON.parse(text);
-    } catch (e) {
-      const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-      if (jsonMatch) {
-        try { parsed = JSON.parse(jsonMatch[0]); } catch (e2) { parsed = null; }
-      } else parsed = null;
-    }
-
-    if (!parsed) throw new Error('Invalid JSON in cloud response. Server returned: ' + (rawLatest.slice(0,500)));
+    if (!parsed) throw new Error('Invalid JSON in cloud response');
 
     if (parsed.data && (parsed.data.transactions || parsed.data.settings || parsed.data.debt)) return parsed;
 

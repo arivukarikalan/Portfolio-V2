@@ -1,4 +1,4 @@
-﻿// Expose explicit app bootstrap so DB opens only after auth checks.
+// Expose explicit app bootstrap so DB opens only after auth checks.
 window.startApp = async function startApp() {
   const uid = localStorage.getItem('activeUserId');
   if (!uid) {
@@ -31,7 +31,7 @@ if (typeof window !== 'undefined') {
     if (typeof loadDashboard === 'function') loadDashboard();
   });
 }
-const DEFAULT_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwkn6cNRV9UE2XehtFUdZoaySiDiOPqEXLC312FU3Ybbav5jNo5toEOuOvmzzAmiw5b/exec";
+const DEFAULT_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzkSMNGyDU7yk-pMSvF1wsEVetBJaQepnqOV8DbjbdoxS37TfszxMeGNufhe3N9viw/exec";
 
 if (typeof window !== 'undefined') {
   if (!window.APP_APPS_SCRIPT_URL) {
@@ -41,3 +41,4 @@ if (typeof window !== 'undefined') {
     window.APP_LIVE_PRICE_URL = window.APP_APPS_SCRIPT_URL;
   }
 }
+

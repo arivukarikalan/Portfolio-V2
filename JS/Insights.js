@@ -302,6 +302,145 @@ function renderReasonOutcome(listEl, rows) {
   `).join("");
 }
 
+function renderAllocationVisualization(containerEl, rows) {
+  if (!containerEl) return;
+  const list = (rows || []).slice().sort((a, b) => b.invested - a.invested);
+  if (!list.length) {
+    containerEl.innerHTML = "";
+    return;
+  }
+  const total = list.reduce((s, r) => s + Number(r.invested || 0), 0) || 1;
+  const palette = ["#2563eb", "#0ea5e9", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6", "#14b8a6", "#ef4444"];
+  containerEl.innerHTML = `
+    <div class="txn-card">
+      <div class="tiny-label mb-2"><strong>Allocation Visual</strong> (top ${Math.min(8, list.length)} holdings)</div>
+      ${list.slice(0, 8).map((r, i) => {
+        const pct = (Number(r.invested || 0) / total) * 100;
+        const c = palette[i % palette.length];
+        return `
+          <div class="mb-2">
+            <div class="split-row">
+              <div class="left-col tiny-label">${r.stock}</div>
+              <div class="right-col tiny-label">${pct.toFixed(2)}%</div>
+            </div>
+            <div style="height:8px;border-radius:999px;background:rgba(148,163,184,.2);overflow:hidden;">
+              <div style="height:100%;width:${Math.max(1, pct).toFixed(2)}%;background:${c};border-radius:999px;"></div>
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderDecisionDashboard(containerEl, params) {
+  if (!containerEl) return;
+  const reasonRows = params?.reasonRows || [];
+  const efficiencyRows = params?.efficiencyRows || [];
+  const edgeRows = params?.edgeRows || [];
+  const bestReason = reasonRows[0] || null;
+  const worstReason = reasonRows.length ? reasonRows[reasonRows.length - 1] : null;
+  const topEff = efficiencyRows[0] || null;
+  const weakestEff = efficiencyRows.length ? efficiencyRows[efficiencyRows.length - 1] : null;
+  const bestEdge = edgeRows[0] || null;
+  containerEl.innerHTML = `
+    <div class="txn-card">
+      <div class="split-row">
+        <div class="left-col">
+          <div class="tiny-label">Best Reason Outcome</div>
+          <div class="txn-name">${bestReason ? bestReason.reason : "-"}</div>
+          <div class="tiny-label">${bestReason ? `${bestReason.returnPct.toFixed(2)}% | Win ${bestReason.winRate.toFixed(1)}%` : "No realized data"}</div>
+        </div>
+        <div class="right-col">
+          <div class="tiny-label">Weakest Reason</div>
+          <div class="txn-name">${worstReason ? worstReason.reason : "-"}</div>
+          <div class="tiny-label">${worstReason ? `${worstReason.returnPct.toFixed(2)}%` : "-"}</div>
+        </div>
+      </div>
+    </div>
+    <div class="txn-card">
+      <div class="split-row">
+        <div class="left-col">
+          <div class="tiny-label">Top Capital Efficiency</div>
+          <div class="txn-name">${topEff ? topEff.stock : "-"}</div>
+          <div class="tiny-label">${topEff ? `Score ${topEff.score.toFixed(1)} | Return ${topEff.returnPct.toFixed(2)}%` : "-"}</div>
+        </div>
+        <div class="right-col">
+          <div class="tiny-label">Needs Attention</div>
+          <div class="txn-name">${weakestEff ? weakestEff.stock : "-"}</div>
+          <div class="tiny-label">${weakestEff ? weakestEff.note : "-"}</div>
+        </div>
+      </div>
+    </div>
+    <div class="txn-card">
+      <div class="tiny-label">Holding Window Edge</div>
+      <div class="txn-name">${bestEdge ? bestEdge.label : "-"}</div>
+      <div class="tiny-label">${bestEdge ? `Return ${bestEdge.returnPct.toFixed(2)}% | Win ${bestEdge.winRate.toFixed(1)}% | Trades ${bestEdge.trades}` : "No realized sell windows yet"}</div>
+    </div>
+  `;
+}
+
+function renderInsightsOverview(capitalRows, qualityByMonth, settings) {
+  const grid = document.getElementById("insightsOverviewGrid");
+  const chart = document.getElementById("insightsQualityChart");
+  if (!grid || !chart) return;
+
+  const rows = Array.isArray(capitalRows) ? capitalRows : [];
+  if (!rows.length) {
+    grid.innerHTML = `
+      <div class="stat-card"><div class="stat-label">Active Holdings</div><div class="stat-value">0</div></div>
+      <div class="stat-card"><div class="stat-label">Active Invested</div><div class="stat-value">₹0.00</div></div>
+      <div class="stat-card"><div class="stat-label">Unrealized</div><div class="stat-value">₹0.00</div></div>
+      <div class="stat-card"><div class="stat-label">Max Allocation</div><div class="stat-value">${Number(settings?.maxAllocationPct || 0).toFixed(2)}%</div></div>
+    `;
+    chart.innerHTML = `<div class="text-muted">No active holdings for behavior-quality trend.</div>`;
+    return;
+  }
+
+  const invested = rows.reduce((a, r) => a + Number(r.invested || 0), 0);
+  const unrealized = rows.reduce((a, r) => a + Number(r.unrealized || 0), 0);
+  const overAlloc = rows.filter(r => Number(r.capitalSharePct || 0) > Number(settings?.maxAllocationPct || 0)).length;
+  const avgReturn = rows.reduce((a, r) => a + Number(r.returnPct || 0), 0) / Math.max(1, rows.length);
+
+  grid.innerHTML = `
+    <div class="stat-card"><div class="stat-label">Active Holdings</div><div class="stat-value">${rows.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Active Invested</div><div class="stat-value">₹${invested.toFixed(2)}</div></div>
+    <div class="stat-card"><div class="stat-label">Unrealized</div><div class="stat-value ${unrealized >= 0 ? "profit" : "loss"}">₹${unrealized.toFixed(2)}</div></div>
+    <div class="stat-card"><div class="stat-label">Avg Return</div><div class="stat-value ${avgReturn >= 0 ? "profit" : "loss"}">${avgReturn.toFixed(2)}%</div></div>
+    <div class="stat-card"><div class="stat-label">Over-Alloc Stocks</div><div class="stat-value ${overAlloc > 0 ? "loss" : "profit"}">${overAlloc}</div></div>
+    <div class="stat-card"><div class="stat-label">Max Allocation Rule</div><div class="stat-value">${Number(settings?.maxAllocationPct || 0).toFixed(2)}%</div></div>
+  `;
+
+  const months = Object.keys(qualityByMonth || {}).sort();
+  if (!months.length) {
+    chart.innerHTML = `<div class="text-muted">No month-wise quality events yet.</div>`;
+    return;
+  }
+
+  const scoreMap = {};
+  months.forEach(m => {
+    const q = qualityByMonth[m] || {};
+    const buys = Number(q.buys || 0);
+    const bad = Number(q.chaseBuys || 0) + Number(q.weakDropBuys || 0) + Number(q.overAllocBuys || 0);
+    const panic = Number(q.panicSells || 0);
+    const score = Math.max(0, 100 - (bad * 12) - (panic * 10) + (buys > 0 ? 5 : 0));
+    scoreMap[m] = Math.min(100, score);
+  });
+  const maxVal = Math.max(1, ...Object.values(scoreMap));
+  chart.innerHTML = months.map(m => {
+    const v = Number(scoreMap[m] || 0);
+    const w = (v / maxVal) * 100;
+    const cls = v >= 70 ? "profit" : (v >= 50 ? "" : "loss");
+    return `
+      <div class="adv-bar-row">
+        <div class="adv-bar-label">${m}</div>
+        <div class="adv-bar-track"><div class="adv-bar ${v >= 70 ? "profit" : "loss"}" style="width:${w}%"></div></div>
+        <div class="adv-bar-value ${cls}">${v.toFixed(0)}/100</div>
+      </div>
+    `;
+  }).join("");
+}
+
 function toggleInsightsSection(panelId, btnEl) {
   const panel = document.getElementById(panelId);
   if (!panel || !btnEl) return;
@@ -316,11 +455,9 @@ function toggleInsightsSection(panelId, btnEl) {
 
 function loadInsights() {
   const allocationList = document.getElementById("allocationList");
+  const allocationChartWrap = document.getElementById("allocationChartWrap");
   const avgDownList = document.getElementById("avgDownList");
   const advancedList = document.getElementById("advancedInsightsList");
-  const reasonOutcomeList = document.getElementById("reasonOutcomeList");
-  const capitalEfficiencyList = document.getElementById("capitalEfficiencyList");
-  const holdingEdgeList = document.getElementById("holdingEdgeList");
   if (!allocationList || !avgDownList) return;
 
   getSettings(settings => {
@@ -541,9 +678,6 @@ function loadInsights() {
         allocationList.innerHTML = "";
         avgDownList.innerHTML = "";
         if (advancedList) advancedList.innerHTML = "";
-        if (reasonOutcomeList) reasonOutcomeList.innerHTML = "";
-        if (capitalEfficiencyList) capitalEfficiencyList.innerHTML = "";
-        if (holdingEdgeList) holdingEdgeList.innerHTML = "";
 
         const totalActiveInvested = Object.values(state)
           .reduce((sum, s) => sum + s.lots.reduce(
@@ -818,23 +952,12 @@ function loadInsights() {
             </div>`;
         }
 
-        if (capitalEfficiencyList) {
-          const rankedEfficiency = buildCapitalEfficiencyRows(capitalRows, settings);
-          renderCapitalEfficiency(capitalEfficiencyList, rankedEfficiency);
-        }
+        renderAllocationVisualization(allocationChartWrap, capitalRows);
 
-        if (reasonOutcomeList) {
-          const reasonRows = buildReasonOutcome(txns, settings);
-          renderReasonOutcome(reasonOutcomeList, reasonRows);
-        }
-
-        if (holdingEdgeList) {
-          const edgeRows = buildHoldingEdgeRows(txns, settings);
-          renderHoldingEdge(holdingEdgeList, edgeRows);
-        }
+        renderInsightsOverview(capitalRows, quality.byMonth, settings);
 
         // set lastInsightsData for analyzer to use
-        window.lastInsightsData = { state, capitalRows, settings };
+        window.lastInsightsData = { state, capitalRows, settings, txns };
         populateExitStockOptions(capitalRows);
         initExitAnalyzerControls();
       };
@@ -849,17 +972,16 @@ function simulatePartialExit(stock, sellQty, sellPrice, lastInsights) {
   if (!s) return { error: "Stock not found in active holdings" };
 
   const settings = lastInsights.settings;
-  // Compute total held & invested from current lots (copy to avoid mutation)
+  const txns = Array.isArray(lastInsights.txns) ? lastInsights.txns : [];
   const lots = (s.lots || []).map(l => ({ qty: Number(l.qty), price: Number(l.price), brokeragePerUnit: Number(l.brokeragePerUnit || 0) }));
   const totalQty = lots.reduce((a, l) => a + l.qty, 0);
   const invested = lots.reduce((a, l) => a + l.qty * (l.price + l.brokeragePerUnit), 0);
 
   if (sellQty <= 0 || sellQty > totalQty) return { error: "Invalid sell quantity" };
 
-  // SELL uses most-recent buys (simulate selling last buy(s)) => use lots from the end (LIFO of active lots)
   let remainingToSell = sellQty;
   let buyValueOfSold = 0;
-  const lotsCopy = lots.slice(); // left-to-right oldest->newest
+  const lotsCopy = lots.slice();
   for (let i = lotsCopy.length - 1; i >= 0 && remainingToSell > 0; i--) {
     const lot = lotsCopy[i];
     const used = Math.min(lot.qty, remainingToSell);
@@ -867,19 +989,51 @@ function simulatePartialExit(stock, sellQty, sellPrice, lastInsights) {
     remainingToSell -= used;
   }
 
-  // Sell brokerage estimation
   const sellBrkg = resolveTxnBrokerage({ type: "SELL", qty: sellQty, price: sellPrice }, settings);
-
   const sellValueGross = sellQty * sellPrice;
   const netProfit = sellValueGross - buyValueOfSold - sellBrkg;
   const profitPct = buyValueOfSold > 0 ? (netProfit / buyValueOfSold) * 100 : 0;
-
-  // Remaining position after sell
   const remainingQty = totalQty - sellQty;
   const remainingInvested = invested - buyValueOfSold;
   const newAvgAfterSell = remainingQty > 0 ? (remainingInvested / remainingQty) : 0;
   const oldAvg = totalQty > 0 ? (invested / totalQty) : 0;
   const avgImprovement = oldAvg - newAvgAfterSell;
+
+  const totalPortfolioInvested = (lastInsights.capitalRows || []).reduce((sum, r) => sum + Number(r.invested || 0), 0);
+  const allocBefore = totalPortfolioInvested > 0 ? (invested / totalPortfolioInvested) * 100 : 0;
+  const allocAfterBase = Math.max(1, totalPortfolioInvested - buyValueOfSold);
+  const allocAfter = remainingInvested > 0 ? (remainingInvested / allocAfterBase) * 100 : 0;
+
+  const perf = {};
+  const fifo = {};
+  txns.slice().sort((a, b) => parseDateLocalInsight(a.date) - parseDateLocalInsight(b.date)).forEach(t => {
+    const st = String(t.stock || "");
+    fifo[st] ??= [];
+    perf[st] ??= { invested: 0, net: 0 };
+    if (String(t.type || "").toUpperCase() === "BUY") {
+      const b = resolveTxnBrokerage(t, settings);
+      const q = Number(t.qty || 0);
+      fifo[st].push({ qty: q, price: Number(t.price || 0), brkgPerUnit: q > 0 ? b / q : 0 });
+      return;
+    }
+    let qSell = Number(t.qty || 0);
+    const pSell = Number(t.price || 0);
+    const sellBrkgTotal = resolveTxnBrokerage(t, settings);
+    while (qSell > 0 && fifo[st].length) {
+      const lot = fifo[st][0];
+      const used = Math.min(lot.qty, qSell);
+      const ratio = Number(t.qty || 0) > 0 ? used / Number(t.qty || 0) : 0;
+      const inv = used * (lot.price + lot.brkgPerUnit);
+      const net = (used * pSell) - inv - (sellBrkgTotal * ratio);
+      perf[st].invested += inv;
+      perf[st].net += net;
+      lot.qty -= used;
+      qSell -= used;
+      if (lot.qty === 0) fifo[st].shift();
+    }
+  });
+  const myPerf = perf[stock] || { invested: 0, net: 0 };
+  const myHistReturnPct = myPerf.invested > 0 ? (myPerf.net / myPerf.invested) * 100 : 0;
 
   return {
     stock,
@@ -897,12 +1051,16 @@ function simulatePartialExit(stock, sellQty, sellPrice, lastInsights) {
     oldAvg,
     newAvgAfterSell,
     avgImprovement,
+    allocBefore,
+    allocAfter,
+    myHistReturnPct,
+    perf,
     settings,
-    s // provide state for further suggestions
+    s
   };
 }
 
-function suggestReentry(simulation) {
+function suggestReentry(simulation, lastInsights) {
   const { s, settings, sellPrice } = simulation;
   const base = Number(s.cycleFirstBuyPrice || s.cycleBuys?.[0]?.price || simulation.oldAvg || 0);
   const lvl1 = base * (1 - Number(settings.avgLevel1Pct || 0) / 100);
@@ -939,7 +1097,30 @@ function suggestReentry(simulation) {
     details: `Based on L1: ₹${lvl1.toFixed(2)}, L2: ₹${lvl2.toFixed(2)} and ${discountPct}% discount heuristic.`
   };
 
-  return { upSuggestion, downSuggestion, lvl1: Number(lvl1.toFixed(2)), lvl2: Number(lvl2.toFixed(2)) };
+  const perf = simulation.perf || {};
+  const capitalRows = Array.isArray(lastInsights?.capitalRows) ? lastInsights.capitalRows : [];
+  const currentStocks = new Set(capitalRows.map(r => r.stock));
+  const tradedStocks = Object.keys(perf);
+  const universe = Array.from(new Set([...currentStocks, ...tradedStocks])).filter(st => st && st !== simulation.stock);
+  const candidates = universe.map(st => {
+    const p = perf[st] || { invested: 0, net: 0 };
+    const histPct = p.invested > 0 ? (p.net / p.invested) * 100 : 0;
+    const active = capitalRows.find(r => r.stock === st);
+    return {
+      stock: st,
+      histPct,
+      activeReturnPct: active ? Number(active.returnPct || 0) : null,
+      capitalSharePct: active ? Number(active.capitalSharePct || 0) : 0
+    };
+  }).sort((a, b) => (b.histPct - a.histPct) || ((b.activeReturnPct || -999) - (a.activeReturnPct || -999)));
+
+  return {
+    upSuggestion,
+    downSuggestion,
+    lvl1: Number(lvl1.toFixed(2)),
+    lvl2: Number(lvl2.toFixed(2)),
+    candidates: candidates.slice(0, 5)
+  };
 }
 
 function renderExitAnalysis(containerEl, simResult, suggestions) {
@@ -955,17 +1136,20 @@ function renderExitAnalysis(containerEl, simResult, suggestions) {
       <div class="split-row">
         <div class="left-col">
           <div class="txn-name">${simResult.stock}</div>
-          <div class="tiny-label">Sold ${simResult.sellQty} | Price ₹${simResult.sellPrice.toFixed(2)}</div>
+          <div class="tiny-label">Sold ${simResult.sellQty} | Price Rs ${simResult.sellPrice.toFixed(2)}</div>
         </div>
         <div class="right-col">
-          <div class="metric-strong ${profitCls}">₹${simResult.netProfit.toFixed(2)}</div>
+          <div class="metric-strong ${profitCls}">Rs ${simResult.netProfit.toFixed(2)}</div>
           <div class="tiny-label">${simResult.profitPct.toFixed(2)}% profit on sold lot</div>
         </div>
       </div>
 
       <div class="mt-2 tiny-label"><strong>Impact on Holdings</strong></div>
       <div class="txn-sub">
-        Remaining Qty: ${simResult.remainingQty} | Old Avg: ₹${simResult.oldAvg.toFixed(2)} | New Avg: ₹${simResult.newAvgAfterSell ? simResult.newAvgAfterSell.toFixed(2) : "-"} | Avg Improvement: ₹${simResult.avgImprovement.toFixed(2)}
+        Remaining Qty: ${simResult.remainingQty} | Old Avg: Rs ${simResult.oldAvg.toFixed(2)} | New Avg: Rs ${simResult.newAvgAfterSell ? simResult.newAvgAfterSell.toFixed(2) : "-"} | Avg Improvement: Rs ${simResult.avgImprovement.toFixed(2)}
+      </div>
+      <div class="txn-sub">
+        Allocation: ${simResult.allocBefore.toFixed(2)}% -> ${simResult.allocAfter.toFixed(2)}% | Historical realized return: ${simResult.myHistReturnPct.toFixed(2)}%
       </div>
 
       <div class="mt-2 tiny-label"><strong>Post-Sell Strategy</strong></div>
@@ -973,22 +1157,39 @@ function renderExitAnalysis(containerEl, simResult, suggestions) {
       <div class="section-shell mt-1">
         <div class="tiny-label"><strong>If price moves UP:</strong></div>
         <div class="tiny-label">${suggestions.upSuggestion.reason}</div>
-        <div class="tiny-label">Nearest safe re-entry: ₹${suggestions.upSuggestion.nearestSafeLevel}</div>
+        <div class="tiny-label">Nearest safe re-entry: Rs ${suggestions.upSuggestion.nearestSafeLevel}</div>
         <div class="tiny-label text-muted">${suggestions.upSuggestion.confirmationCondition}</div>
       </div>
 
       <div class="section-shell mt-2">
         <div class="tiny-label"><strong>If price moves DOWN:</strong></div>
         <div class="tiny-label">${suggestions.downSuggestion.reason}</div>
-        <div class="tiny-label">Suggested re-buy: ₹${suggestions.downSuggestion.suggestedPrice} | Qty: ${suggestions.downSuggestion.suggestedQty}</div>
-        <div class="tiny-label">Projected new avg: ₹${suggestions.downSuggestion.newAvg} (avg improve ₹${suggestions.downSuggestion.avgImprovementOnRebuy})</div>
+        <div class="tiny-label">Suggested re-buy: Rs ${suggestions.downSuggestion.suggestedPrice} | Qty: ${suggestions.downSuggestion.suggestedQty}</div>
+        <div class="tiny-label">Projected new avg: Rs ${suggestions.downSuggestion.newAvg} (avg improve Rs ${suggestions.downSuggestion.avgImprovementOnRebuy})</div>
         <div class="tiny-label text-muted">${suggestions.downSuggestion.details}</div>
       </div>
 
       <div class="suggestion-budget mt-2">
         <strong>Consolidated Action:</strong>
-        ${suggestions.downSuggestion.avgImprovementOnRebuy > 0 ? `Re-buy at ₹${suggestions.downSuggestion.suggestedPrice} to improve avg` : `Wait for pullback into L1 (${suggestions.lvl1}) or L2 (${suggestions.lvl2})`}
+        ${suggestions.downSuggestion.avgImprovementOnRebuy > 0 ? `Re-buy at Rs ${suggestions.downSuggestion.suggestedPrice} to improve avg` : `Wait for pullback into L1 (${suggestions.lvl1}) or L2 (${suggestions.lvl2})`}
       </div>
+
+      ${Array.isArray(suggestions.candidates) && suggestions.candidates.length ? `
+      <div class="table-responsive mt-2">
+        <table class="table table-sm">
+          <thead><tr><th>Stock</th><th class="text-end">Hist %</th><th class="text-end">Active %</th><th class="text-end">Alloc %</th></tr></thead>
+          <tbody>
+            ${suggestions.candidates.map(c => `
+              <tr>
+                <td>${c.stock}</td>
+                <td class="text-end ${c.histPct >= 0 ? "profit" : "loss"}">${c.histPct.toFixed(2)}%</td>
+                <td class="text-end">${c.activeReturnPct == null ? "-" : c.activeReturnPct.toFixed(2) + "%"}</td>
+                <td class="text-end">${Number(c.capitalSharePct || 0).toFixed(2)}%</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>` : ``}
     </div>
   `;
 }
@@ -1001,6 +1202,8 @@ function initExitAnalyzerControls() {
   const simulateBtn = document.getElementById("exitSimulateBtn");
   const resetBtn = document.getElementById("exitResetBtn");
   const resultEl = document.getElementById("exitAnalyzerResult");
+  if (simulateBtn?.dataset.wired === "1") return;
+  if (simulateBtn) simulateBtn.dataset.wired = "1";
 
   simulateBtn?.addEventListener("click", () => {
     const stock = (stockInput?.value || "").trim();
@@ -1020,7 +1223,7 @@ function initExitAnalyzerControls() {
       if (resultEl) resultEl.innerHTML = `<div class="txn-card text-danger">${sim.error}</div>`;
       return;
     }
-    const suggestions = suggestReentry({ ...sim, sellPrice });
+    const suggestions = suggestReentry({ ...sim, sellPrice }, window.lastInsightsData);
     renderExitAnalysis(resultEl, sim, suggestions);
   });
 
@@ -1140,3 +1343,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+

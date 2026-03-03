@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -9,34 +9,20 @@
        ===================================================== -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-  <link rel="icon" type="image/png" href="Assets/Icons/Favicon.png">
+  <link rel="icon" type="image/svg+xml" href="Assets/Icons/app-favicon.svg">
   <!-- =====================================================
        FEATURE: Application UI Styles
        ===================================================== -->
   <link href="CSS/ui.css" rel="stylesheet">
   <link href="CSS/ui-theme.css" rel="stylesheet">
   <link href="CSS/ui-improvements.css" rel="stylesheet">
+  <link href="CSS/ui-shell.css" rel="stylesheet">
+  <link href="CSS/advanced.css" rel="stylesheet">
+  <script src="JS/common-ui.js"></script>
+  <script src="JS/ui-shell.js"></script>
 </head>
 
 <body class="page-pnl">
-
-<!-- =====================================================
-     FEATURE: Header Bar
-     ===================================================== -->
-     <div class="app-header">
-      <div class="app-title">Profit & Loss</div>
-      <div class="d-flex gap-2">
-        <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
-          <i class="bi bi-moon-stars"></i>
-        </button>
-        <a href="Report.html" class="btn btn-sm btn-light" title="Report">
-          <i class="bi bi-clipboard-data"></i>
-        </a>
-        <a href="Settings.html" class="btn btn-sm btn-light" title="Settings">
-          <i class="bi bi-gear"></i>
-        </a>
-      </div>
-    </div>
 
 <!-- =====================================================
      FEATURE: Profit & Loss Content
@@ -46,6 +32,16 @@
   <section class="hero">
     <h2 class="hero-title">Profit & Loss Studio</h2>
     <p class="hero-sub">Track realised outcomes stock-wise and drill into each sell transaction.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h3 class="panel-title"><i class="bi bi-graph-up-arrow"></i> P/L Visual Summary</h3>
+    </div>
+    <div class="panel-body tight">
+      <div id="pnlSummaryGrid" class="adv-grid mb-2"></div>
+      <div id="pnlMonthlyChart" class="chart-wrap"></div>
+    </div>
   </section>
 
   <!-- =================================================
@@ -86,66 +82,20 @@
 </div>
 
 <!-- =====================================================
-     FEATURE: Bottom Navigation
-     ===================================================== -->
-     <nav class="bottom-nav">
-      <a href="index.html">
-        <i class="bi bi-grid"></i>
-        Home
-      </a>
-      <a href="Transactions.html">
-        <i class="bi bi-arrow-left-right"></i>
-        Txn
-      </a>
-      <a href="Holdings.html">
-        <i class="bi bi-briefcase"></i>
-        Hold
-      </a>
-      <a class="active" href="Pnl.html">
-        <i class="bi bi-bar-chart"></i>
-        P/L
-      </a>
-      <a href="Insights.html">
-        <i class="bi bi-lightbulb"></i>
-        Insights
-      </a></nav>
-
-<!-- =====================================================
      FEATURE: Script Includes
      ===================================================== -->
 <script src="JS/Db.js"></script>
 <script src="JS/App.js"></script>
 <script src="JS/Settings.js"></script>
 <script src="JS/Transactions.js"></script>
-
 <script>
-  /* =====================================================
-     FEATURE: Theme Toggle
-     ===================================================== */
-  function toggleTheme() {
-    document.body.classList.toggle("dark");
-    localStorage.setItem(
-      "theme",
-      document.body.classList.contains("dark") ? "dark" : "light"
-    );
-  }
-
-  if (localStorage.getItem("theme") === "dark") {
-    document.body.classList.add("dark");
-  }
-
-  // Apply saved font-size
-  (function(){ const s = localStorage.getItem('uiFontSize') || 'medium'; document.documentElement.classList.remove('size-small','size-medium','size-large'); document.documentElement.classList.add('size-'+s); })();
-
-  /* =====================================================
-     FEATURE: Page Initialization
-     ===================================================== */
-     (function(){ const uid = localStorage.getItem('activeUserId'); if(!uid){ window.location.href = './client/profile.html'; return; } openDB().then(seedSettings).then(() => { initPnLFilters(); calculatePnL(); }); })();
-
-    ["pnlFrom", "pnlTo", "pnlStock"].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener("input", calculatePnL);
-});
+  (function(){
+    const uid = localStorage.getItem('activeUserId');
+    if (!uid) { window.location.href = './client/profile.html'; return; }
+    if (typeof window.startApp === 'function') {
+      window.startApp().catch(e => console.error('startApp error', e));
+    }
+  })();
 </script>
 
 </body>

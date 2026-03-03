@@ -241,6 +241,15 @@ body.dark .bottom-nav a i {
 
 body {
   padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+  background: var(--bg) !important;
+}
+
+html {
+  background: var(--bg) !important;
+}
+
+.container.page-shell {
+  padding-bottom: 14px;
 }
 
 /* Mobile-first header layout: user/title on first row, action icons on second row */
@@ -314,7 +323,7 @@ body.dark .app-header .btn {
   inset: 0;
   background: rgba(6, 10, 18, 0.45);
   display: none;
-  z-index: 10000;
+  z-index: 14050;
   padding: 14px;
 }
 .cloud-status-card {
@@ -326,6 +335,39 @@ body.dark .app-header .btn {
   border-radius: 14px;
   padding: 14px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
+}
+
+/* Visual polish: stronger data cards and tables across pages */
+.stat-card {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(240px 80px at 100% -20%, rgba(37, 99, 235, 0.08), transparent 55%),
+    var(--card);
+  border: 1px solid var(--border);
+}
+.stat-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, #2563eb 0%, #0ea5e9 55%, #10b981 100%);
+  opacity: 0.8;
+}
+.panel .table thead th {
+  letter-spacing: 0.02em;
+  font-weight: 700;
+}
+.panel .table tbody td {
+  vertical-align: middle;
+}
+.panel .table tbody tr {
+  transition: background-color .16s ease;
+}
+.panel .table tbody tr:hover {
+  background: color-mix(in oklab, var(--card-soft) 86%, #2563eb);
 }
 @media (max-width: 520px) {
   .cloud-status-modal {

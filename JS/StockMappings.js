@@ -59,6 +59,47 @@ async function probeTickerHealth(rows) {
 
 function renderStockMappings(rows, tickerProbe = {}) {
   const host = document.getElementById("mappingList");
+  const summaryHost = document.getElementById("mappingSummary");
+  const barsHost = document.getElementById("mappingHealthBars");
+  const total = rows.length;
+  const enabled = rows.filter(r => r.enabled !== false).length;
+  const valid = rows.filter(r => {
+    const t = normalizeNseTicker(r.ticker);
+    if (!t) return false;
+    if (r.enabled === false) return false;
+    const p = tickerProbe[t];
+    return !!(p && p.hasPrice);
+  }).length;
+  const invalid = rows.filter(r => r.enabled !== false).length - valid;
+
+  if (summaryHost) {
+    summaryHost.innerHTML = `
+      <div class="row g-2">
+        <div class="col-6"><div class="stat-card"><div class="stat-label">Total Mappings</div><div class="stat-value">${total}</div></div></div>
+        <div class="col-6"><div class="stat-card"><div class="stat-label">Enabled</div><div class="stat-value">${enabled}</div></div></div>
+        <div class="col-6"><div class="stat-card"><div class="stat-label">Price-resolving</div><div class="stat-value profit">${valid}</div></div></div>
+        <div class="col-6"><div class="stat-card"><div class="stat-label">Needs Attention</div><div class="stat-value ${invalid > 0 ? "loss" : "profit"}">${Math.max(0, invalid)}</div></div></div>
+      </div>
+    `;
+  }
+
+  if (barsHost) {
+    const safeTotal = Math.max(1, enabled);
+    const validPct = (valid / safeTotal) * 100;
+    const badPct = (Math.max(0, invalid) / safeTotal) * 100;
+    barsHost.innerHTML = `
+      <div class="tiny-label mb-1">Enabled mapping health</div>
+      <div style="height:12px;background:rgba(148,163,184,.18);border-radius:999px;overflow:hidden;display:flex;">
+        <div style="width:${validPct}%;background:linear-gradient(90deg,#10b981,#22c55e)"></div>
+        <div style="width:${badPct}%;background:linear-gradient(90deg,#ef4444,#f97316)"></div>
+      </div>
+      <div class="split-row mt-1">
+        <div class="left-col tiny-label"><span class="profit">Valid ${pctText(validPct)}</span></div>
+        <div class="right-col tiny-label"><span class="${invalid > 0 ? "loss" : "profit"}">Attention ${pctText(badPct)}</span></div>
+      </div>
+    `;
+  }
+
   if (!host) return;
   if (!rows.length) {
     host.innerHTML = `<div class="txn-card text-center text-muted">No stock mappings yet</div>`;
@@ -106,6 +147,10 @@ function renderStockMappings(rows, tickerProbe = {}) {
     </div>
   `; })()}
   `).join("");
+}
+
+function pctText(v) {
+  return `${Number(v || 0).toFixed(1)}%`;
 }
 
 async function loadStockMappings() {
@@ -246,4 +291,8 @@ function initStockMappingsPage() {
   bindStockMappingForm();
   seedMissingMappingsFromTransactions();
   loadStockMappings();
+}
+
+if (typeof window !== "undefined") {
+  window.initStockMappingsPage = initStockMappingsPage;
 }

@@ -1,4 +1,4 @@
-﻿/* =========================================================
+/* =========================================================
    FILE: settings.js
    PURPOSE:
    - Centralised application settings
@@ -64,7 +64,9 @@ function showToast(message, type = "success", durationMs) {
     setTimeout(() => toast.remove(), 220);
   }, life);
 }
-if (typeof window !== "undefined") window.showToast = showToast;
+if (typeof window !== "undefined" && typeof window.showToast !== "function") {
+  window.showToast = showToast;
+}
 
 function appShowLoading(message = "Please wait...") {
   let el = document.getElementById("appLoadingOverlay");
@@ -235,24 +237,7 @@ if (typeof window !== "undefined") {
 function setupBottomNav() {
   const nav = document.querySelector(".bottom-nav");
   if (!nav) return;
-
-  const links = Array.from(nav.querySelectorAll("a"));
-  if (links.length <= 5) return;
-
-  const current = (location.pathname.split("/").pop() || "index.html").toLowerCase();
-
-  let hideHref = "analytics.html";
-  if (current === "analytics.html") hideHref = "insights.html";
-  if (current === "insights.html") hideHref = "analytics.html";
-
-  const toHide = links.find(
-    a => (a.getAttribute("href") || "").toLowerCase() === hideHref
-  );
-
-  if (toHide) {
-    toHide.style.display = "none";
-    nav.classList.add("nav-five");
-  }
+  // Legacy bottom nav is now hidden by shared side-shell.
 }
 
 function daysBetween(fromIso, toDate = new Date()) {
@@ -333,8 +318,193 @@ function maybeShowWeeklyBackupReminder() {
   }
 }
 
+const AUTO_SYNC_INTERVAL_MS = 2 * 24 * 60 * 60 * 1000;
+const AUTO_SYNC_LAST_AT_KEY = "cloud_auto_sync_last_at";
+const AUTO_SYNC_REPORT_KEY = "cloud_auto_sync_last_report";
+const AUTO_SYNC_RUNNING_KEY = "cloud_auto_sync_running";
+const SETTINGS_LIVE_PRICE_BUMP_KEY = "live_price_settings_bump_v1";
+
+function isLocalDevOrigin() {
+  try {
+    const host = String(window.location.hostname || "").toLowerCase();
+    return host === "127.0.0.1" || host === "localhost" || host === "";
+  } catch (e) {
+    return false;
+  }
+}
+
+function getAutoSyncReport() {
+  try {
+    const raw = localStorage.getItem(AUTO_SYNC_REPORT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveAutoSyncReport(report) {
+  try {
+    localStorage.setItem(AUTO_SYNC_REPORT_KEY, JSON.stringify(report || {}));
+    localStorage.setItem(AUTO_SYNC_LAST_AT_KEY, new Date().toISOString());
+  } catch (e) {}
+}
+
+async function maybeRunAutoCloudSync(force = false) {
+  if (isLocalDevOrigin()) {
+    return { skipped: true, reason: "local_dev_cors" };
+  }
+  const userId = String(localStorage.getItem("activeUserId") || "").trim();
+  if (!userId) return { skipped: true, reason: "no_user" };
+
+  const now = Date.now();
+  const lastAtIso = localStorage.getItem(AUTO_SYNC_LAST_AT_KEY);
+  const lastAtMs = lastAtIso ? Date.parse(lastAtIso) : 0;
+  const due = !lastAtMs || !Number.isFinite(lastAtMs) || (now - lastAtMs >= AUTO_SYNC_INTERVAL_MS);
+  if (!force && !due) return { skipped: true, reason: "not_due" };
+
+  const runningAt = Number(localStorage.getItem(AUTO_SYNC_RUNNING_KEY) || 0);
+  if (runningAt && now - runningAt < 45000) return { skipped: true, reason: "already_running" };
+
+  localStorage.setItem(AUTO_SYNC_RUNNING_KEY, String(now));
+  const startedAt = new Date().toISOString();
+  try {
+    const mod = await import("../client/cloudSync.js");
+    const url = getAppsScriptUrl();
+    const result = await mod.uploadToCloud(url, {
+      userId,
+      eventType: "auto_sync_2d",
+      // Avoid extra GETs on strict CORS setups; keep sync robust.
+      skipIfNoChange: false,
+      skipRecoveryHashLookup: true
+    });
+    const report = {
+      ok: true,
+      userId,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      skipped: !!result?.skipped,
+      reason: result?.reason || null,
+      exportedAt: result?.response?.exportedAt || null
+    };
+    saveAutoSyncReport(report);
+    if (!result?.skipped) showToast("Auto sync completed", "success", 2200);
+    return report;
+  } catch (err) {
+    const report = {
+      ok: false,
+      userId,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      error: String(err?.message || err)
+    };
+    try { localStorage.setItem(AUTO_SYNC_REPORT_KEY, JSON.stringify(report)); } catch (e) {}
+    return report;
+  } finally {
+    localStorage.removeItem(AUTO_SYNC_RUNNING_KEY);
+  }
+}
+
+function readStoreAll(storeName) {
+  return new Promise(resolve => {
+    try {
+      db.transaction(storeName, "readonly").objectStore(storeName).getAll().onsuccess = e => {
+        resolve(e.target.result || []);
+      };
+    } catch (e) {
+      resolve([]);
+    }
+  });
+}
+
+function csvCell(value) {
+  const v = value == null ? "" : String(value);
+  if (/[",\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
+  return v;
+}
+
+function csvRow(values) {
+  return (values || []).map(csvCell).join(",");
+}
+
+async function exportAllDataCsv() {
+  try {
+    if (typeof db === "undefined" || !db) {
+      if (typeof openDB === "function") await openDB();
+    }
+    const [txns, settingsRows, borrows, repays, mappings] = await Promise.all([
+      readStoreAll("transactions"),
+      readStoreAll("settings"),
+      readStoreAll("debt_borrows"),
+      readStoreAll("debt_repays"),
+      readStoreAll("stock_mappings")
+    ]);
+
+    const settings = (settingsRows && settingsRows[0]) ? settingsRows[0] : {};
+    const buyValue = txns.filter(t => String(t.type || "").toUpperCase() === "BUY")
+      .reduce((sum, t) => sum + (Number(t.qty || 0) * Number(t.price || 0)), 0);
+    const sellValue = txns.filter(t => String(t.type || "").toUpperCase() === "SELL")
+      .reduce((sum, t) => sum + (Number(t.qty || 0) * Number(t.price || 0)), 0);
+    const totalBrokerage = txns.reduce((sum, t) => sum + Number(t.brokerage || 0), 0);
+    const realizedApprox = sellValue - buyValue - totalBrokerage;
+
+    let csv = "#FINANCE_APP_FULL_EXPORT_V1\n";
+    csv += `#EXPORTED_AT,${new Date().toISOString()}\n`;
+    csv += `#ACTIVE_USER,${csvCell(localStorage.getItem("activeUserId") || "")}\n\n`;
+
+    csv += "#SUMMARY\n";
+    csv += "transactions_count,debt_borrows_count,debt_repays_count,stock_mappings_count,sell_gross,buy_gross,total_brokerage,realized_net_approx\n";
+    csv += `${csvRow([txns.length, borrows.length, repays.length, mappings.length, sellValue.toFixed(2), buyValue.toFixed(2), totalBrokerage.toFixed(2), realizedApprox.toFixed(2)])}\n\n`;
+
+    csv += "#SETTINGS\n";
+    csv += "key,value\n";
+    Object.keys(settings || {}).forEach(k => {
+      csv += `${csvRow([k, settings[k]])}\n`;
+    });
+    csv += "\n";
+
+    csv += "#TRANSACTIONS\n";
+    csv += "id,date,stock,type,qty,price,brokerage,reason,note,createdAt,updatedAt\n";
+    (txns || []).forEach(t => {
+      csv += `${csvRow([t.id, t.date, t.stock, t.type, t.qty, t.price, t.brokerage, t.reason, t.note, t.createdAt, t.updatedAt])}\n`;
+    });
+    csv += "\n";
+
+    csv += "#DEBT_BORROWS\n";
+    csv += "id,date,lender,category,amount,interestPct,note,createdAt\n";
+    (borrows || []).forEach(b => {
+      csv += `${csvRow([b.id, b.date, b.lender, b.category, b.amount, b.interestPct, b.note, b.createdAt])}\n`;
+    });
+    csv += "\n";
+
+    csv += "#DEBT_REPAYS\n";
+    csv += "id,date,lender,amount,note,createdAt\n";
+    (repays || []).forEach(r => {
+      csv += `${csvRow([r.id, r.date, r.lender, r.amount, r.note, r.createdAt])}\n`;
+    });
+    csv += "\n";
+
+    csv += "#STOCK_MAPPINGS\n";
+    csv += "stock,ticker,exchange,enabled,updatedAt\n";
+    (mappings || []).forEach(m => {
+      csv += `${csvRow([m.stock, m.ticker, m.exchange, m.enabled, m.updatedAt])}\n`;
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `finance_full_export_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+
+    markBackupDone();
+    showToast("Full CSV export downloaded", "success");
+  } catch (err) {
+    showToast("Full export failed: " + (err?.message || err), "error", 4000);
+  }
+}
+
 function getAppsScriptUrl() {
-  const fallback = "https://script.google.com/macros/s/AKfycbwkn6cNRV9UE2XehtFUdZoaySiDiOPqEXLC312FU3Ybbav5jNo5toEOuOvmzzAmiw5b/exec";
+  const fallback = "https://script.google.com/macros/s/AKfycbzkSMNGyDU7yk-pMSvF1wsEVetBJaQepnqOV8DbjbdoxS37TfszxMeGNufhe3N9viw/exec";
   return (typeof window !== "undefined" && window.APP_APPS_SCRIPT_URL) ? window.APP_APPS_SCRIPT_URL : fallback;
 }
 
@@ -424,7 +594,11 @@ function formatIso(iso) {
 function addCloudHeaderButton() {
   const uid = localStorage.getItem("activeUserId");
   if (!uid) return;
-  const host = document.querySelector(".app-header .d-flex");
+  // Phase-1 shell has compact right actions; keep cloud status inside Settings panel only.
+  if (document.getElementById("appShellActions")) return;
+  const host =
+    document.querySelector("#appShellActions") ||
+    document.querySelector(".app-header .d-flex");
   if (!host) return;
   if (document.getElementById("cloud-status-btn")) return;
 
@@ -458,6 +632,13 @@ function addCloudHeaderButton() {
         txCount = Array.isArray(payload?.data?.transactions) ? payload.data.transactions.length : "-";
       } catch (e) {}
 
+      const report = getAutoSyncReport();
+      const autoSyncHtml = report
+        ? `<hr><div><strong>Auto Sync (2d):</strong> ${report.ok ? "OK" : '<span class="text-danger">Failed</span>'}</div>
+           <div><strong>Last run:</strong> ${formatIso(report.finishedAt || report.startedAt)}</div>
+           <div><strong>Status:</strong> ${report.skipped ? `Skipped (${report.reason || "n/a"})` : "Uploaded"}</div>`
+        : `<hr><div><strong>Auto Sync (2d):</strong> No report yet</div>`;
+
       const html = `
         <div><strong>User:</strong> ${userId}</div>
         <div><strong>Total snapshots:</strong> ${rows.length}</div>
@@ -465,6 +646,7 @@ function addCloudHeaderButton() {
         <div><strong>Latest export:</strong> ${formatIso(latest.exportedAt)}</div>
         <div><strong>Latest tx count:</strong> ${txCount}</div>
         <div><strong>Recovery hash:</strong> ${latestHash ? "Present" : '<span class="text-danger">Missing</span>'}</div>
+        ${autoSyncHtml}
       `;
       upsertCloudStatusModal(html);
     } catch (err) {
@@ -544,9 +726,51 @@ function wireRotatePasskeyButton() {
 
 function initSharedUi() {
   setupBottomNav();
-  maybeShowWeeklyBackupReminder();
+  maybeRunAutoCloudSync().catch(() => {});
   addCloudHeaderButton();
   wireRotatePasskeyButton();
+  const settingsExportBtn = document.getElementById("settingsExportBtn");
+  if (settingsExportBtn && settingsExportBtn.dataset.wired !== "1") {
+    settingsExportBtn.dataset.wired = "1";
+    settingsExportBtn.addEventListener("click", exportAllDataCsv);
+  }
+  const autoSyncNowBtn = document.getElementById("autoSyncNowBtn");
+  if (autoSyncNowBtn && autoSyncNowBtn.dataset.wired !== "1") {
+    autoSyncNowBtn.dataset.wired = "1";
+    autoSyncNowBtn.addEventListener("click", async () => {
+      autoSyncNowBtn.disabled = true;
+      appShowLoading("Running cloud auto sync...");
+      try {
+        const res = await maybeRunAutoCloudSync(true);
+        if (res?.ok) showToast("Auto sync report updated", "success");
+        else showToast("Auto sync failed: " + (res?.error || "unknown"), "error");
+      } finally {
+        appHideLoading();
+        autoSyncNowBtn.disabled = false;
+      }
+    });
+  }
+  const livePriceRefreshNowBtn = document.getElementById("livePriceRefreshNowBtn");
+  if (livePriceRefreshNowBtn && livePriceRefreshNowBtn.dataset.wired !== "1") {
+    livePriceRefreshNowBtn.dataset.wired = "1";
+    livePriceRefreshNowBtn.addEventListener("click", async () => {
+      livePriceRefreshNowBtn.disabled = true;
+      appShowLoading("Refreshing live prices...");
+      try {
+        if (typeof window.refreshLivePrices === "function") {
+          await window.refreshLivePrices({ force: true, debug: false });
+          showToast("Live prices refreshed", "success");
+        } else {
+          showToast("Live price module is not loaded on this page", "error");
+        }
+      } catch (err) {
+        showToast("Live price refresh failed: " + (err?.message || err), "error");
+      } finally {
+        appHideLoading();
+        livePriceRefreshNowBtn.disabled = false;
+      }
+    });
+  }
   try {
     const raw = localStorage.getItem("lastCloudPruneDebug");
     if (raw) {
@@ -592,8 +816,8 @@ function seedSettings() {
           avgLevel2Pct: 12,
           livePriceRefreshSec: 60,
 
-          fdRatePct: 6.5,        // âœ… NEW
-          inflationRatePct: 6.0, // âœ… NEW
+          fdRatePct: 6.5,        // ✅ NEW
+          inflationRatePct: 6.0, // ✅ NEW
 
           sellTargetPct: 15,
           stopLossPct: 8,
@@ -626,8 +850,8 @@ function loadSettings() {
     document.getElementById("avgLevel2Pct").value = s.avgLevel2Pct;
     document.getElementById("livePriceRefreshSec").value = Math.max(60, Number(s.livePriceRefreshSec || 60));
 
-    document.getElementById("fdRatePct").value = s.fdRatePct;           // âœ… NEW
-    document.getElementById("inflationRatePct").value = s.inflationRatePct; // âœ… NEW
+    document.getElementById("fdRatePct").value = s.fdRatePct;           // ✅ NEW
+    document.getElementById("inflationRatePct").value = s.inflationRatePct; // ✅ NEW
     document.getElementById("sellTargetPct").value = s.sellTargetPct ?? 15;
     document.getElementById("stopLossPct").value = s.stopLossPct ?? 8;
     document.getElementById("minHoldDaysTrim").value = s.minHoldDaysTrim ?? 20;
@@ -649,8 +873,8 @@ function saveSettings() {
     avgLevel2Pct: Number(avgLevel2Pct.value),
     livePriceRefreshSec: Math.max(60, Number(livePriceRefreshSec.value || 60)),
 
-    fdRatePct: Number(fdRatePct.value),               // âœ… NEW
-    inflationRatePct: Number(inflationRatePct.value), // âœ… NEW
+    fdRatePct: Number(fdRatePct.value),               // ✅ NEW
+    inflationRatePct: Number(inflationRatePct.value), // ✅ NEW
 
     sellTargetPct: Number(sellTargetPct.value),
     stopLossPct: Number(stopLossPct.value),
@@ -662,6 +886,13 @@ function saveSettings() {
 
   tx.oncomplete = () => {
     showToast("Settings saved successfully");
+    try {
+      localStorage.setItem(SETTINGS_LIVE_PRICE_BUMP_KEY, String(Date.now()));
+      window.dispatchEvent(new CustomEvent("live-price-settings-updated"));
+    } catch (e) {}
+    if (typeof window.initLivePrices === "function") {
+      window.initLivePrices();
+    }
   };
 }
 
@@ -692,3 +923,4 @@ function importCSV() {
 // Keep functions global for Settings.html onclick handlers
 window.exportCSV = exportCSV;
 window.importCSV = importCSV;
+

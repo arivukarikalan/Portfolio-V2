@@ -9,24 +9,13 @@
   <link href="CSS/ui.css" rel="stylesheet">
   <link href="CSS/ui-theme.css" rel="stylesheet">
   <link href="CSS/ui-improvements.css" rel="stylesheet">
-  <link rel="icon" type="image/png" href="Assets/Icons/Favicon.png">
+  <link href="CSS/ui-shell.css" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="Assets/Icons/app-favicon.svg">
   <!-- per-page visual tweaks moved to CSS/ui-improvements.css -->
+  <script src="JS/common-ui.js"></script>
+  <script src="JS/ui-shell.js"></script>
 </head>
 <body class="page-tradequality">
-
-<div class="app-header">
-  <div class="app-title">Trade Quality</div>
-  <div class="d-flex gap-2">
-    <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
-      <i class="bi bi-moon-stars"></i>
-    </button>
-    <a href="TradeQuality.html" class="btn btn-sm btn-light" title="Trade Quality">
-      <i class="bi bi-bar-chart-line"></i>
-    </a>
-    <a href="Report.html" class="btn btn-sm btn-light" title="Report"><i class="bi bi-clipboard-data"></i></a>
-    <a href="Settings.html" class="btn btn-sm btn-light" title="Settings"><i class="bi bi-gear"></i></a>
-  </div>
-</div>
 
 <div class="container page-shell">
   <section class="hero">
@@ -72,37 +61,21 @@
 
     <div id="tqDetails" class="mt-3"></div>
   </section>
-</div>
-
-<nav class="bottom-nav">
-  <a href="index.html"><i class="bi bi-grid"></i>Home</a>
-  <a href="Transactions.html"><i class="bi bi-arrow-left-right"></i>Txn</a>
-  <a href="Holdings.html"><i class="bi bi-briefcase"></i>Hold</a>
-  <a href="Pnl.html"><i class="bi bi-bar-chart"></i>P/L</a>
-  <a href="Insights.html"><i class="bi bi-lightbulb"></i>Insights</a>
-</nav>
-
-<script src="JS/Db.js"></script>
+</div><script src="JS/Db.js"></script>
 <script src="JS/App.js"></script>
 <script src="JS/Settings.js"></script>
 <script src="JS/Transactions.js"></script>
 <script src="JS/TradeQuality.js"></script>
-
 <script>
-  function toggleTheme() {
-    document.body.classList.toggle("dark");
-    localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
-  }
-  if (localStorage.getItem("theme") === "dark") document.body.classList.add("dark");
-
-  // Apply saved font-size
-  (function(){ 
-    const s = localStorage.getItem('uiFontSize') || 'medium'; 
-    document.documentElement.classList.remove('size-small','size-medium','size-large'); 
-    document.documentElement.classList.add('size-'+s); 
+  (function(){
+    const uid = localStorage.getItem('activeUserId');
+    if (!uid) { window.location.href = './client/profile.html'; return; }
+    openDB()
+      .then(seedSettings)
+      .then(() => { if (typeof loadTradeQuality === 'function') loadTradeQuality(); })
+      .catch(e => console.error('trade quality init error', e));
   })();
-
-  (function(){ const uid = localStorage.getItem('activeUserId'); if(!uid){ window.location.href = './client/profile.html'; return; } openDB().then(seedSettings).then(() => { loadTradeQuality(); }); })();
 </script>
+
 </body>
 </html>

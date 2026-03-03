@@ -1,11 +1,11 @@
-﻿/* profileManager.js
+/* profileManager.js
    Stable auth lifecycle:
    - One DB name: PortfolioDB
    - DB exists only after successful login
    - Cloud snapshot is source of truth
 */
 import { setUserContext, clearAndRestore, fetchLatestFromCloud, uploadToCloud, uploadSnapshotToCloud } from './cloudSync.js';
-const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwkn6cNRV9UE2XehtFUdZoaySiDiOPqEXLC312FU3Ybbav5jNo5toEOuOvmzzAmiw5b/exec';
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzkSMNGyDU7yk-pMSvF1wsEVetBJaQepnqOV8DbjbdoxS37TfszxMeGNufhe3N9viw/exec';
 
 function getAppsUrl() {
   const url = (typeof window !== 'undefined' && window.APP_APPS_SCRIPT_URL) ? window.APP_APPS_SCRIPT_URL : DEFAULT_APPS_SCRIPT_URL;
@@ -13,6 +13,54 @@ function getAppsUrl() {
     window.APP_APPS_SCRIPT_URL = url;
   }
   return url;
+}
+
+function isLocalDevOrigin() {
+  try {
+    if (typeof window === 'undefined') return false;
+    const host = String(window.location.hostname || '').toLowerCase();
+    return host === '127.0.0.1' || host === 'localhost' || host === '';
+  } catch (e) {
+    return false;
+  }
+}
+
+function jsonpRequest(url) {
+  return new Promise((resolve, reject) => {
+    if (typeof document === 'undefined') {
+      reject(new Error('jsonp_unavailable'));
+      return;
+    }
+    const cbName = '__pt_auth_jsonp_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const u = new URL(url.toString());
+    u.searchParams.set('callback', cbName);
+    const script = document.createElement('script');
+    let done = false;
+    const cleanup = () => {
+      try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+      try { script.remove(); } catch (e) {}
+    };
+    window[cbName] = (data) => {
+      if (done) return;
+      done = true;
+      cleanup();
+      resolve(data);
+    };
+    script.onerror = () => {
+      if (done) return;
+      done = true;
+      cleanup();
+      reject(new Error('jsonp_failed'));
+    };
+    script.src = u.toString();
+    document.head.appendChild(script);
+    setTimeout(() => {
+      if (done) return;
+      done = true;
+      cleanup();
+      reject(new Error('jsonp_timeout'));
+    }, 15000);
+  });
 }
 
 function base64UrlEncode(bytes) {
@@ -148,14 +196,15 @@ async function clearLocalTransactionsOnly() {
 async function fetchUserRows(appsUrl) {
   const url = new URL(appsUrl);
   url.searchParams.set('mode', 'all');
-  const res = await fetch(url.toString(), { method: 'GET' });
-  if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
-  const text = await res.text();
   let parsed = null;
   try {
+    const res = await fetch(url.toString(), { method: 'GET' });
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
+    const text = await res.text();
     parsed = JSON.parse(text);
   } catch (e) {
-    parsed = null;
+    if (!isLocalDevOrigin()) throw e;
+    parsed = await jsonpRequest(url);
   }
   if (!parsed) throw new Error('Invalid JSON from cloud');
   return Array.isArray(parsed?.rows) ? parsed.rows : [];
@@ -368,7 +417,12 @@ export async function authenticateAndStore(userId, recoveryKey) {
       console.error('[Auth Debug] fetchLatestFromCloud failed', e);
       console.groupEnd();
     } catch (e2) {}
-    return { ok: false, notFound: true };
+    return {
+      ok: false,
+      reason: 'cloud_unreachable',
+      error: String((e && e.message) ? e.message : e),
+      endpoint: urlToUse
+    };
   }
   if (!payload) {
     try {
@@ -649,3 +703,4 @@ if (typeof window !== 'undefined') {
   window.appDeleteTransactionsOnly = deleteTransactionsOnly;
   window.appDeleteProfileAndData = deleteProfileAndData;
 }
+

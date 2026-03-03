@@ -1,0 +1,201 @@
+/* Phase 1 shared shell: top bar + side navigation */
+.app-shell-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.app-shell-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.app-shell-title {
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 58vw;
+}
+
+.app-shell-menu-btn,
+.app-shell-action-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-soft);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-shell-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-shell-profile-wrap {
+  position: relative;
+}
+
+.app-shell-profile-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 230px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 14px 30px rgba(2, 8, 23, 0.22);
+  padding: 6px;
+  display: none;
+  z-index: 13200;
+}
+
+.app-shell-profile-menu.show {
+  display: block;
+}
+
+.app-shell-profile-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  border-radius: 9px;
+  padding: 10px 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-shell-profile-item:hover {
+  background: color-mix(in oklab, var(--card-soft) 84%, var(--blue));
+}
+
+.app-shell-profile-item.danger {
+  color: #b42318;
+}
+
+.app-shell-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  background: rgba(2, 8, 23, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease;
+}
+
+.app-shell-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.app-shell-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(82vw, 320px);
+  z-index: 13100;
+  transform: translateX(-102%);
+  transition: transform .2s ease;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  box-shadow: 0 14px 38px rgba(2, 8, 23, 0.2);
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell-drawer.show {
+  transform: translateX(0);
+}
+
+.app-shell-drawer-head {
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-shell-brand {
+  font-weight: 900;
+  font-size: 1rem;
+}
+
+.app-shell-user {
+  margin-top: 4px;
+  font-size: .86rem;
+  color: var(--muted);
+}
+
+.app-shell-nav {
+  padding: 10px;
+  overflow: auto;
+}
+
+.app-shell-nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.app-shell-nav a.active {
+  background: color-mix(in oklab, var(--card-soft) 74%, var(--blue));
+  border-color: color-mix(in oklab, var(--border) 72%, var(--blue));
+  color: var(--text);
+}
+
+.app-shell-nav a:hover {
+  background: color-mix(in oklab, var(--card-soft) 85%, var(--blue));
+}
+
+/* hide legacy navigation to avoid clutter */
+.app-shell-legacy-hide .app-header,
+.app-shell-legacy-hide .bottom-nav {
+  display: none !important;
+}
+
+body.app-shell-legacy-hide {
+  padding-top: 62px !important;
+  padding-bottom: 16px !important;
+}
+
+body.app-shell-legacy-hide .container.page-shell {
+  padding-top: 8px;
+}
+
+@media (max-width: 420px) {
+  body.app-shell-legacy-hide {
+    padding-top: 66px !important;
+  }
+}
+
+/* Keep toasts visible below fixed shell topbar */
+body.app-shell-legacy-hide .toast-host {
+  top: calc(70px + env(safe-area-inset-top, 0px)) !important;
+  z-index: 15050 !important;
+}

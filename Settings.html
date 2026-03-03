@@ -4,333 +4,141 @@
   <meta charset="UTF-8">
   <title>Settings</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" type="image/png" href="Assets/Icons/Favicon.png">
-  <!-- UI Libraries -->
+  <link rel="icon" type="image/svg+xml" href="Assets/Icons/app-favicon.svg">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-
-  <!-- App Styles -->
   <link href="CSS/ui.css" rel="stylesheet">
   <link href="CSS/ui-theme.css" rel="stylesheet">
   <link href="CSS/ui-improvements.css" rel="stylesheet">
+  <link href="CSS/ui-shell.css" rel="stylesheet">
+  <script src="JS/common-ui.js"></script>
+  <script src="JS/ui-shell.js"></script>
 </head>
-
 <body class="page-settings">
+  <div class="container page-shell">
+    <section class="hero">
+      <h2 class="hero-title">Settings</h2>
+      <p class="hero-sub">Control charges, risk rules, appearance, export and cloud sync in one place.</p>
+    </section>
 
-<!-- ================= HEADER ================= -->
-<div class="app-header">
-  <div class="app-title" id="appTitle">Settings</div>
-  <div class="d-flex gap-2">
-    <button onclick="toggleTheme()" class="btn btn-sm btn-light"><i class="bi bi-moon-stars"></i></button>
-    <a href="Report.html" class="btn btn-sm btn-light" title="Report"><i class="bi bi-clipboard-data"></i></a>
-    <!-- Sign out button: clears local profile and passkey, returns to login -->
-    <button onclick="signOut()" class="btn btn-sm btn-light" title="Sign out"><i class="bi bi-box-arrow-right"></i></button>
-  </div>
-</div>
-
-<div class="container page-shell">
-
-  <section class="hero">
-    <h2 class="hero-title">Control Center</h2>
-    <p class="hero-sub">Tune brokerage, risk rules, assumptions, and data backup in one place.</p>
-  </section>
-
-  <!-- ================= BROKERAGE SETTINGS ================= -->
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3 class="panel-title"><i class="bi bi-percent"></i> Brokerage & Charges</h3>
-      </div>
-    </div>
-    <div class="panel-body">
-
-    <div class="row g-3">
-      <div class="col-6">
-        <label class="form-label">Buy Brokerage %</label>
-        <input id="buyBrokeragePct" type="number" step="0.01" class="form-control">
-        <small class="text-muted">Percentage per quantity</small>
-      </div>
-
-      <div class="col-6">
-        <label class="form-label">Sell Brokerage %</label>
-        <input id="sellBrokeragePct" type="number" step="0.01" class="form-control">
-      </div>
-
-      <div class="col-12">
-        <label class="form-label">DP Charge (&#8377; per sell)</label>
-        <input id="dpCharge" type="number" step="0.01" class="form-control">
-      </div>
-    </div>
-
-  </div>
-  </section>
-
-  <!-- ================= PORTFOLIO RULES ================= -->
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3 class="panel-title"><i class="bi bi-shield-check"></i> Portfolio Rules</h3>
-      </div>
-    </div>
-    <div class="panel-body">
-
-    <div class="row g-3">
-      <div class="col-6">
-        <label class="form-label">Portfolio Size (&#8377;)</label>
-        <input id="portfolioSize" type="number" class="form-control">
-      </div>
-
-      <div class="col-6">
-        <label class="form-label">Max Allocation %</label>
-        <input id="maxAllocationPct" type="number" class="form-control">
-        <small class="text-muted">Warning above this %</small>
-      </div>
-    </div>
-
-  </div>
-  </section>
-
-  <!-- ================= AVERAGE DOWN RULES ================= -->
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3 class="panel-title"><i class="bi bi-layers"></i> Average Down Levels</h3>
-      </div>
-    </div>
-    <div class="panel-body">
-
-    <div class="row g-3">
-      <div class="col-6">
-        <label class="form-label">Level 1 Drop %</label>
-        <input id="avgLevel1Pct" type="number" class="form-control">
-      </div>
-
-      <div class="col-6">
-        <label class="form-label">Level 2 Drop %</label>
-        <input id="avgLevel2Pct" type="number" class="form-control">
-      </div>
-    </div>
-
-  </div>
-  </section>
-
-  <!-- ================= LIVE PRICE REFRESH ================= -->
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3 class="panel-title"><i class="bi bi-arrow-repeat"></i> Live Price Refresh</h3>
-      </div>
-    </div>
-    <div class="panel-body">
-      <div class="row g-3">
-        <div class="col-12">
-          <label class="form-label">Refresh Interval (seconds)</label>
-          <input id="livePriceRefreshSec" type="number" min="60" step="5" class="form-control">
-          <small class="text-muted">Minimum safe interval: 60 seconds (default 60s).</small>
+    <section class="panel mb-3">
+      <div class="panel-head"><h3 class="panel-title"><i class="bi bi-cash-stack"></i> Brokerage & Charges</h3></div>
+      <div class="panel-body tight">
+        <div class="row g-2">
+          <div class="col-4"><label class="form-label">Buy %</label><input id="buyBrokeragePct" type="number" step="0.01" class="form-control"></div>
+          <div class="col-4"><label class="form-label">Sell %</label><input id="sellBrokeragePct" type="number" step="0.01" class="form-control"></div>
+          <div class="col-4"><label class="form-label">DP Charge</label><input id="dpCharge" type="number" step="0.01" class="form-control"></div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ================= FD & INFLATION ================= -->
-<section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3 class="panel-title"><i class="bi bi-graph-up-arrow"></i> FD & Inflation Assumptions</h3>
+    <section class="panel mb-3">
+      <div class="panel-head"><h3 class="panel-title"><i class="bi bi-shield-check"></i> Risk & Allocation</h3></div>
+      <div class="panel-body tight">
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label">Portfolio Size</label><input id="portfolioSize" type="number" class="form-control"></div>
+          <div class="col-6"><label class="form-label">Max Allocation %</label><input id="maxAllocationPct" type="number" step="0.01" class="form-control"></div>
+          <div class="col-4"><label class="form-label">Avg L1 %</label><input id="avgLevel1Pct" type="number" step="0.01" class="form-control"></div>
+          <div class="col-4"><label class="form-label">Avg L2 %</label><input id="avgLevel2Pct" type="number" step="0.01" class="form-control"></div>
+        </div>
       </div>
-    </div>
-    <div class="panel-body">
-  
-    <div class="row g-3">
-      <div class="col-6">
-        <label class="form-label">FD Annual Rate (%)</label>
-        <input id="fdRatePct" type="number" step="0.01" class="form-control">
-        <small class="text-muted">Global FD return assumption</small>
+    </section>
+
+    <section class="panel mb-3">
+      <div class="panel-head"><h3 class="panel-title"><i class="bi bi-broadcast"></i> Live Price Engine</h3></div>
+      <div class="panel-body tight">
+        <div class="row g-2 align-items-end">
+          <div class="col-6"><label class="form-label">Refresh Interval (sec)</label><input id="livePriceRefreshSec" type="number" min="60" max="3600" class="form-control"></div>
+          <div class="col-6 d-grid"><button id="livePriceRefreshNowBtn" type="button" class="btn btn-outline-primary"><i class="bi bi-arrow-clockwise"></i> Refresh Prices Now</button></div>
+        </div>
+        <small class="text-muted d-block mt-2">Minimum 60 seconds. Uses cloud feed configured in your Apps Script URL.</small>
       </div>
-  
-      <div class="col-6">
-        <label class="form-label">Inflation Rate (%)</label>
-        <input id="inflationRatePct" type="number" step="0.01" class="form-control">
-        <small class="text-muted">Annual inflation assumption</small>
+    </section>
+
+    <section class="panel mb-3">
+      <div class="panel-head"><h3 class="panel-title"><i class="bi bi-graph-up"></i> Exit Rules</h3></div>
+      <div class="panel-body tight">
+        <div class="row g-2">
+          <div class="col-4"><label class="form-label">Target %</label><input id="sellTargetPct" type="number" step="0.01" class="form-control"></div>
+          <div class="col-4"><label class="form-label">Stop-loss %</label><input id="stopLossPct" type="number" step="0.01" class="form-control"></div>
+          <div class="col-4"><label class="form-label">Min Hold Days</label><input id="minHoldDaysTrim" type="number" class="form-control"></div>
+        </div>
       </div>
-    </div>
-  
+    </section>
+
+    <section class="panel mb-3">
+      <div class="panel-head"><h3 class="panel-title"><i class="bi bi-bank"></i> Macro Inputs</h3></div>
+      <div class="panel-body tight">
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label">FD Rate %</label><input id="fdRatePct" type="number" step="0.01" class="form-control"></div>
+          <div class="col-6"><label class="form-label">Inflation %</label><input id="inflationRatePct" type="number" step="0.01" class="form-control"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel mb-3">
+      <div class="panel-head"><h3 class="panel-title"><i class="bi bi-type"></i> UI Font Size</h3></div>
+      <div class="panel-body tight">
+        <div class="d-flex gap-3">
+          <label><input type="radio" name="uiFontSize" value="small"> Small</label>
+          <label><input type="radio" name="uiFontSize" value="medium"> Medium</label>
+          <label><input type="radio" name="uiFontSize" value="large"> Large</label>
+        </div>
+      </div>
+    </section>
+
+    <button class="btn btn-primary w-100 mb-3" onclick="saveSettings()">Save All Settings</button>
+
+    <section class="panel mb-3">
+      <div class="panel-head"><h3 class="panel-title"><i class="bi bi-database"></i> Data Management</h3></div>
+      <div class="panel-body tight">
+        <button id="settingsExportBtn" class="btn btn-outline-primary w-100 mb-2" type="button"><i class="bi bi-filetype-csv"></i> Export Full Data (CSV)</button>
+        <small class="text-muted d-block mb-3">Exports transactions, debt, settings, stock mappings, and summary metrics.</small>
+
+        <button id="sync-cloud-btn" class="btn btn-outline-secondary w-100 mb-2" type="button"><i class="bi bi-cloud-arrow-up"></i> Sync to Cloud</button>
+        <button id="restore-cloud-btn" class="btn btn-outline-secondary w-100 mb-2" type="button"><i class="bi bi-cloud-arrow-down"></i> Restore from Cloud</button>
+        <button id="rotate-passkey-btn" class="btn btn-outline-warning w-100 mb-2" type="button"><i class="bi bi-key"></i> Change Password</button>
+        <button id="check-cloud-btn" class="btn btn-outline-info w-100 mb-2" type="button"><i class="bi bi-bug"></i> Check Cloud (diag)</button>
+        <button id="autoSyncNowBtn" class="btn btn-outline-success w-100 mb-2" type="button"><i class="bi bi-arrow-repeat"></i> Run Auto Sync Now (2-day policy)</button>
+      </div>
+    </section>
+
+    <section class="panel" onclick="location.href='StockMappings.html'" style="cursor:pointer">
+      <div class="panel-body d-flex justify-content-between align-items-center">
+        <div>
+          <div class="section-title mb-1 mt-0">Stock Mappings</div>
+          <div class="text-muted">Map app stock names to NSE tickers for live price integration</div>
+        </div>
+        <i class="bi bi-chevron-right fs-4"></i>
+      </div>
+    </section>
   </div>
-  </section>
 
-  <!-- ================= SELL DISCIPLINE RULES ================= -->
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3 class="panel-title"><i class="bi bi-signpost-split"></i> Sell Discipline Rules</h3>
-      </div>
-    </div>
-    <div class="panel-body">
-      <div class="row g-3">
-        <div class="col-4">
-          <label class="form-label">Target %</label>
-          <input id="sellTargetPct" type="number" step="0.01" class="form-control">
-        </div>
-        <div class="col-4">
-          <label class="form-label">Stop-loss %</label>
-          <input id="stopLossPct" type="number" step="0.01" class="form-control">
-        </div>
-        <div class="col-4">
-          <label class="form-label">Min Hold Days (Trim)</label>
-          <input id="minHoldDaysTrim" type="number" step="1" class="form-control">
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= UI FONT SIZE ================= -->
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3 class="panel-title"><i class="bi bi-type"></i> UI Font Size</h3>
-        <p class="panel-note">Choose font size for the entire app. Persists across pages.</p>
-      </div>
-    </div>
-    <div class="panel-body">
-      <div class="d-flex gap-3 align-items-center">
-        <label class="u-small"><input type="radio" name="uiFontSize" value="small"> Small</label>
-        <label class="u-small"><input type="radio" name="uiFontSize" value="medium"> Medium (default)</label>
-        <label class="u-small"><input type="radio" name="uiFontSize" value="large"> Large</label>
-      </div>
-      <div class="tiny-label mt-2">Changes apply immediately and persist for all pages.</div>
-    </div>
-  </section>
-
-  <button onclick="saveSettings()" class="btn btn-primary w-100 mb-3">
-    Save All Settings
-  </button>
-
-  <!-- ================= DATA MANAGEMENT ================= -->
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3 class="panel-title"><i class="bi bi-database"></i> Data Management</h3>
-      </div>
-    </div>
-    <div class="panel-body">
-
-    <!-- Legacy CSV controls removed. Use Cloud Backup controls below. -->
-    <small class="text-muted d-block mb-3">
-      CSV export/import removed. Use Cloud Backup (Sync to Cloud / Restore from Cloud) below to manage backups.
-    </small>
-
-    <!-- Cloud sync controls: manual backup / restore via Google Sheets -->
-    <div class="mt-3">
-      <button id="sync-cloud-btn" class="btn btn-outline-secondary w-100 mb-2" type="button">
-        <i class="bi bi-cloud-arrow-up"></i> Sync to Cloud
-      </button>
-      <button id="restore-cloud-btn" class="btn btn-outline-secondary w-100 mb-2" type="button">
-        <i class="bi bi-cloud-arrow-down"></i> Restore from Cloud
-      </button>
-      <button id="rotate-passkey-btn" class="btn btn-outline-warning w-100 mb-2" type="button">
-        <i class="bi bi-key"></i> Change Password
-      </button>
-      <!-- New check button for diagnostics -->
-      <button id="check-cloud-btn" class="btn btn-outline-info w-100 mb-2" type="button">
-        <i class="bi bi-bug"></i> Check Cloud (diag)
-      </button>
-    </div>
-  </div>
-  </section>
-
-  <section class="panel" onclick="location.href='StockMappings.html'" style="cursor:pointer">
-    <div class="panel-body d-flex justify-content-between align-items-center">
-      <div>
-        <div class="section-title mb-1 mt-0">Stock Mappings</div>
-        <div class="text-muted">Map app stock names to NSE tickers for live price integration</div>
-      </div>
-      <i class="bi bi-chevron-right fs-4"></i>
-    </div>
-  </section>
-
-</div>
-
-<!-- ================= BOTTOM NAV ================= -->
-<nav class="bottom-nav">
-  <a href="index.html"><i class="bi bi-grid"></i>Home</a>
-  <a href="Transactions.html"><i class="bi bi-arrow-left-right"></i>Txn</a>
-  <a href="Holdings.html"><i class="bi bi-briefcase"></i>Hold</a>
-  <a href="Pnl.html"><i class="bi bi-bar-chart"></i>P/L</a>
-  <a href="Insights.html"><i class="bi bi-lightbulb"></i>Insights</a></nav>
-
-<!-- ================= SCRIPTS ================= -->
-<script src="JS/Db.js"></script>
-<script src="JS/App.js"></script>
-<script src="JS/Settings.js"></script>
-
-<!-- Load cloud UI wiring (ES module). Adjust path if your layout differs. -->
-<script type="module">
-  import './client/cloudUi.js';
-
-  (function() {
-    try {
+  <script src="JS/Db.js"></script>
+  <script src="JS/LivePrices.js"></script>
+  <script src="JS/App.js"></script>
+  <script src="JS/Settings.js"></script>
+  <script type="module">import './client/cloudUi.js';</script>
+  <script>
+    (function() {
       const uid = localStorage.getItem('activeUserId');
-      if (!uid) {
-        window.location.href = './client/profile.html';
-        return;
-      }
-      document.getElementById('appTitle').textContent = uid;
+      if (!uid) { window.location.href = './client/profile.html'; return; }
       if (typeof window.startApp === 'function') {
-        window.startApp().then(() => {
-          if (typeof loadSettings === 'function') loadSettings();
-        }).catch(e => console.error('startApp error', e));
+        window.startApp().then(() => { if (typeof loadSettings === 'function') loadSettings(); });
       }
-    } catch (e) {}
-  })();
 
-  // wire sign out button to centralized logout
-  window.signOut = function() {
-    if (typeof window !== 'undefined' && typeof window.appLogout === 'function') {
-      window.appLogout();
-      return;
-    }
-    import('./client/profileManager.js').then(mod => mod.logout()).catch(() => {
-      window.location.href = './client/profile.html';
-    });
-  };
-</script>
-
-<script>
-  function toggleTheme() {
-    document.body.classList.toggle("dark");
-    localStorage.setItem(
-      "theme",
-      document.body.classList.contains("dark") ? "dark" : "light"
-    );
-  }
-
-  if (localStorage.getItem("theme") === "dark") {
-    document.body.classList.add("dark");
-  }
-
-  // Apply font-size class to <html> from localStorage
-  function applyFontSizeClass(size) {
-    const root = document.documentElement;
-    root.classList.remove('size-small','size-medium','size-large');
-    root.classList.add('size-' + (size || 'medium'));
-  }
-
-  // Initialize font control UI, persist selection and apply immediately
-  document.addEventListener('DOMContentLoaded', () => {
-    const saved = localStorage.getItem('uiFontSize') || 'medium';
-    applyFontSizeClass(saved);
-
-    const radios = document.querySelectorAll('input[name="uiFontSize"]');
-    radios.forEach(r => {
-      r.checked = (r.value === saved);
-      r.addEventListener('change', (e) => {
-        const v = e.target.value;
-        applyFontSizeClass(v);
-        localStorage.setItem('uiFontSize', v);
+      const saved = localStorage.getItem('uiFontSize') || 'medium';
+      const radios = document.querySelectorAll('input[name="uiFontSize"]');
+      radios.forEach(r => {
+        r.checked = (r.value === saved);
+        r.addEventListener('change', (e) => {
+          const v = e.target.value;
+          document.documentElement.classList.remove('size-small','size-medium','size-large');
+          document.documentElement.classList.add('size-' + v);
+          localStorage.setItem('uiFontSize', v);
+        });
       });
-    });
-  });
-</script>
-
+    })();
+  </script>
 </body>
 </html>

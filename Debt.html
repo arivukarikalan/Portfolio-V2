@@ -6,41 +6,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-  <link rel="icon" type="image/png" href="Assets/Icons/Favicon.png">
+  <link rel="icon" type="image/svg+xml" href="Assets/Icons/app-favicon.svg">
   <link href="CSS/ui.css" rel="stylesheet">
   <link href="CSS/ui-theme.css" rel="stylesheet">
   <link href="CSS/ui-improvements.css" rel="stylesheet">
+  <link href="CSS/ui-shell.css" rel="stylesheet">
+  <script src="JS/common-ui.js"></script>
+  <script src="JS/ui-shell.js"></script>
 </head>
 <body class="page-debt">
-  <div class="app-header">
-    <div class="app-title">Debt Management</div>
-    <div class="d-flex gap-2">
-      <button onclick="toggleTheme()" class="btn btn-sm btn-light" title="Toggle Theme">
-        <i class="bi bi-moon-stars"></i>
-      </button>
-      <a href="Report.html" class="btn btn-sm btn-light" title="Report">
-        <i class="bi bi-clipboard-data"></i>
-      </a>
-      <a href="Settings.html" class="btn btn-sm btn-light" title="Settings">
-        <i class="bi bi-gear"></i>
-      </a>
-    </div>
-  </div>
-
   <div class="container page-shell">
     <section class="hero">
       <h2 class="hero-title">Debt Control Center</h2>
       <p class="hero-sub">Track borrowings, repayments, and close outstanding quickly without disrupting investing.</p>
-    </section>
-
-    <section class="panel">
-      <div class="panel-body tight">
-        <div class="d-flex gap-2">
-          <button id="debtExportBtn" class="btn btn-primary flex-fill" type="button">
-            <i class="bi bi-download"></i> Export Debt CSV
-          </button>
-        </div>
-      </div>
     </section>
 
     <div class="stat-grid" id="debtSummary"></div>
@@ -51,6 +29,12 @@
       </div>
       <div class="panel-body tight">
         <form id="borrowForm" class="row g-2">
+          <div class="col-6">
+            <select id="borSide" class="form-select">
+              <option value="payable">I Borrowed (Need to Pay)</option>
+              <option value="receivable">I Lent (Need to Receive)</option>
+            </select>
+          </div>
           <div class="col-6"><input id="borDate" type="date" class="form-control" required></div>
           <div class="col-6"><input id="borLender" class="form-control" placeholder="Lender name" required></div>
           <div class="col-6">
@@ -74,6 +58,12 @@
       </div>
       <div class="panel-body tight">
         <form id="repayForm" class="row g-2">
+          <div class="col-6">
+            <select id="repSide" class="form-select">
+              <option value="payable">I Repaid (Paid Back)</option>
+              <option value="receivable">I Received Back</option>
+            </select>
+          </div>
           <div class="col-6"><input id="repDate" type="date" class="form-control" required></div>
           <div class="col-6"><input id="repLender" list="lenderOptions" class="form-control" placeholder="Lender name" required></div>
           <datalist id="lenderOptions"></datalist>
@@ -112,7 +102,9 @@
             <select id="debtTxnType" class="form-select">
               <option value="ALL">All</option>
               <option value="BORROW">Borrow</option>
+              <option value="LEND">Lend</option>
               <option value="REPAY">Repay</option>
+              <option value="RECEIVE">Receive</option>
             </select>
           </div>
           <div class="col-4"><input id="debtTxnFrom" type="date" class="form-control"></div>
@@ -127,40 +119,29 @@
                 <th>Lender</th>
                 <th>Type</th>
                 <th class="text-end">Amount</th>
+                <th class="text-end">Actions</th>
               </tr>
             </thead>
             <tbody id="debtTxnTableBody">
-              <tr><td colspan="4" class="text-center text-muted">No debt transactions</td></tr>
+              <tr><td colspan="5" class="text-center text-muted">No debt transactions</td></tr>
             </tbody>
           </table>
         </div>
       </div>
     </section>
-  </div>
-
-  <nav class="bottom-nav">
-    <a href="index.html"><i class="bi bi-grid"></i>Home</a>
-    <a href="Transactions.html"><i class="bi bi-arrow-left-right"></i>Txn</a>
-    <a href="Holdings.html"><i class="bi bi-briefcase"></i>Hold</a>
-    <a href="Pnl.html"><i class="bi bi-bar-chart"></i>P/L</a>
-    <a href="Insights.html"><i class="bi bi-lightbulb"></i>Insights</a>
-  </nav>
-
-  <script src="JS/Db.js"></script>
+</div><script src="JS/Db.js"></script>
 <script src="JS/App.js"></script>
   <script src="JS/Settings.js"></script>
   <script src="JS/Debt.js"></script>
   <script>
-    function toggleTheme() {
-      document.body.classList.toggle("dark");
-      localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
-    }
-    if (localStorage.getItem("theme") === "dark") document.body.classList.add("dark");
-
-    // Apply saved font-size
-    (function(){ const s = localStorage.getItem('uiFontSize') || 'medium'; document.documentElement.classList.remove('size-small','size-medium','size-large'); document.documentElement.classList.add('size-'+s); })();
-
-    (function(){ const uid = localStorage.getItem('activeUserId'); if(!uid){ window.location.href = './client/profile.html'; return; } openDB().then(seedSettings).then(loadDebtPage); })();
+    (function(){
+      const uid = localStorage.getItem('activeUserId');
+      if (!uid) { window.location.href = './client/profile.html'; return; }
+      openDB()
+        .then(seedSettings)
+        .then(() => { if (typeof loadDebtPage === 'function') loadDebtPage(); })
+        .catch(e => console.error('debt init error', e));
+    })();
   </script>
-</body>
+  </body>
 </html>
