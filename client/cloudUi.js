@@ -111,7 +111,11 @@ function wireButtons() {
     syncBtn.addEventListener('click', async () => {
       if (!window.APP_APPS_SCRIPT_URL) { showToast('Cloud URL not configured', 'error'); return; }
       syncBtn.disabled = true;
-      showToast('Preparing export...', 'info', 2000);
+      if (typeof window.appShowActionProgress === 'function') {
+        window.appShowActionProgress('Syncing to cloud...');
+      } else if (typeof window.appShowLoading === 'function') {
+        window.appShowLoading('Syncing to cloud...');
+      }
       try {
         // attach only userId (no passkey/hash persisted)
         let opts = { eventType: 'manual_sync', skipIfNoChange: true };
@@ -140,6 +144,11 @@ function wireButtons() {
         showToast('Upload failed: ' + msg, 'error', 10000);
         console.error('upload error', err);
       } finally {
+        if (typeof window.appHideActionProgress === 'function') {
+          window.appHideActionProgress();
+        } else if (typeof window.appHideLoading === 'function') {
+          window.appHideLoading();
+        }
         syncBtn.disabled = false;
       }
     });
@@ -159,14 +168,18 @@ function wireButtons() {
           if (typeof window !== 'undefined' && typeof window.appConfirmDialog === 'function') {
             const ok = await window.appConfirmDialog(msg, { title: 'Restore From Cloud', okText: 'Restore' });
             cleanupDialogs(); // guard against any stale/stacked dialog remnants
-            if (ok && typeof window.appShowLoading === 'function') {
+            if (ok && typeof window.appShowActionProgress === 'function') {
+              window.appShowActionProgress('Restoring from cloud...');
+            } else if (ok && typeof window.appShowLoading === 'function') {
               window.appShowLoading('Restoring from cloud...');
             }
             return ok;
           }
           const ok = window.confirm(msg);
           cleanupDialogs();
-          if (ok && typeof window !== 'undefined' && typeof window.appShowLoading === 'function') {
+          if (ok && typeof window !== 'undefined' && typeof window.appShowActionProgress === 'function') {
+            window.appShowActionProgress('Restoring from cloud...');
+          } else if (ok && typeof window !== 'undefined' && typeof window.appShowLoading === 'function') {
             window.appShowLoading('Restoring from cloud...');
           }
           return ok;
@@ -238,7 +251,9 @@ function wireButtons() {
         }
       } finally {
         cleanupDialogs();
-        if (typeof window !== 'undefined' && typeof window.appHideLoading === 'function') {
+        if (typeof window !== 'undefined' && typeof window.appHideActionProgress === 'function') {
+          window.appHideActionProgress();
+        } else if (typeof window !== 'undefined' && typeof window.appHideLoading === 'function') {
           window.appHideLoading();
         }
         restoreBtn.disabled = false;
@@ -250,7 +265,11 @@ function wireButtons() {
     checkBtn.addEventListener('click', async () => {
       if (!window.APP_APPS_SCRIPT_URL) { showToast('Cloud URL not configured', 'error'); return; }
       checkBtn.disabled = true;
-      showToast('Checking cloud diagnostics...', 'info', 2000);
+      if (typeof window.appShowActionProgress === 'function') {
+        window.appShowActionProgress('Checking cloud diagnostics...');
+      } else if (typeof window.appShowLoading === 'function') {
+        window.appShowLoading('Checking cloud diagnostics...');
+      }
       try {
         // __cloudFetchDiag is exposed by cloudSync.js for diagnostics
         if (typeof window.__cloudFetchDiag !== 'function') {
@@ -274,6 +293,11 @@ function wireButtons() {
         const msg = err && err.message ? err.message : String(err);
         showToast('Cloud diag failed: ' + msg, 'error', 10000);
       } finally {
+        if (typeof window.appHideActionProgress === 'function') {
+          window.appHideActionProgress();
+        } else if (typeof window.appHideLoading === 'function') {
+          window.appHideLoading();
+        }
         checkBtn.disabled = false;
       }
     });

@@ -204,17 +204,17 @@ function runPreBuyChecklist() {
       .objectStore("transactions")
       .getAll().onsuccess = e => {
         const txns = e.target.result || [];
-        const { map, totalActiveInvested } = buildActiveSnapshotForChecklist(txns, settings);
-        const s = map[stock] || {
-          lots: [],
-          cycleFirstBuyPrice: price,
-          cycleFirstBuyDate: "",
-          cycleLastBuyPrice: price,
-          cycleLastBuyDate: ""
-        };
+        const map = buildPositionHoldingsMap(txns, settings, { captureCycleTxns: true });
+        const totalActiveInvested = Object.keys(map).reduce((sum, st) => {
+          const invested = (map[st]?.lots || []).reduce((a, l) => a + Number(l.qty || 0) * (Number(l.price || 0) + Number(l.brokeragePerUnit || 0)), 0);
+          return sum + invested;
+        }, 0);
+        const s = map[stock] || { lots: [], cycleFirstBuy: null, cycleTxns: [] };
+        const cycleBuyTxns = (s.cycleTxns || []).filter(ct => String(ct.type || "").toUpperCase() === "BUY");
 
         const existingInvested = s.lots.reduce((a, l) => a + l.qty * (l.price + l.brokeragePerUnit), 0);
         const existingQty = s.lots.reduce((a, l) => a + l.qty, 0);
+        const currentAvg = existingQty > 0 ? (existingInvested / existingQty) : 0;
         const buyBrokerage = calculateBrokerage("BUY", qty, price, settings);
         const newBuyCost = qty * price + buyBrokerage;
 
@@ -226,7 +226,7 @@ function runPreBuyChecklist() {
         const stockBudget = (Number(settings.portfolioSize || 0) * maxAllocPct) / 100;
         const remainingBudget = stockBudget - postStockInvested;
 
-        const base = Number(s.cycleFirstBuyPrice || price);
+        const base = Number(cycleBuyTxns[0]?.price || price);
         const l1 = base * (1 - Number(settings.avgLevel1Pct || 0) / 100);
         const l2 = base * (1 - Number(settings.avgLevel2Pct || 0) / 100);
 
@@ -244,7 +244,7 @@ function runPreBuyChecklist() {
           zoneCls = "status-pill-mini warn";
         }
 
-        const lastBuyPrice = Number(s.cycleLastBuyPrice || price);
+        const lastBuyPrice = Number(cycleBuyTxns[cycleBuyTxns.length - 1]?.price || price);
         const dropFromLastPct = lastBuyPrice > 0 ? ((lastBuyPrice - price) / lastBuyPrice) * 100 : 0;
         const avgRuleHit = dropFromLastPct >= Number(settings.avgLevel1Pct || 0);
         const avgRuleText = isFirstBuyInCycle
@@ -276,7 +276,7 @@ function runPreBuyChecklist() {
         panel.style.display = "block";
         panel.innerHTML = `
           <div class="split-row mb-1">
-            <div class="left-col tiny-label">Stock: ${stock} | Qty: ${qty} | Price: ₹${price.toFixed(2)}</div>
+            <div class="left-col tiny-label">Stock: ${stock} | Qty: ${qty} | Price: ₹${price.toFixed(2)} | Buy Cost: ₹${newBuyCost.toFixed(2)}</div>
           </div>
           <div class="status-inline">
             <span class="${zoneCls}">${zoneText}</span>
@@ -286,6 +286,10 @@ function runPreBuyChecklist() {
           <div class="suggestion-row mt-2">
             <span>Targets</span>
             <span>L1: ₹${l1.toFixed(2)} | L2: ₹${l2.toFixed(2)}</span>
+          </div>
+          <div class="suggestion-row">
+            <span>Current Avg (Old)</span>
+            <span>${existingQty > 0 ? `₹${currentAvg.toFixed(2)}` : "-"}</span>
           </div>
           <div class="suggestion-row">
             <span>Projected New Avg</span>
@@ -1324,6 +1328,21 @@ function toggleTxnHistory() {
     icon.classList.add(hidden ? "bi-chevron-up" : "bi-chevron-down");
   }
 }
+
+function toggleHoldingCycle(panelId, btnEl) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  const isOpen = panel.style.display !== "none";
+  panel.style.display = isOpen ? "none" : "block";
+  if (btnEl) {
+    btnEl.setAttribute("aria-expanded", String(!isOpen));
+    const icon = btnEl.querySelector("i");
+    if (icon) {
+      icon.classList.remove("bi-chevron-down", "bi-chevron-up");
+      icon.classList.add(isOpen ? "bi-chevron-down" : "bi-chevron-up");
+    }
+  }
+}
   
   function editTxn(id) {
     db.transaction("transactions", "readonly")
@@ -1375,6 +1394,131 @@ function toggleTxnHistory() {
      - Uses FIFO lots
      - Calculates Avg Price, Invested, Days Held
      ========================================================= */
+  function buildPositionHoldingsMap(txns, settings, options = {}) {
+    const captureCycleTxns = !!options.captureCycleTxns;
+    const sorted = (txns || []).slice().sort((a, b) => {
+      const d = parseDateLocal(a.date) - parseDateLocal(b.date);
+      if (d !== 0) return d;
+      return toFiniteNumber(a.id, 0) - toFiniteNumber(b.id, 0);
+    });
+
+    const byStock = {};
+    sorted.forEach(t => {
+      const stock = String(t.stock || "").trim();
+      if (!stock) return;
+      byStock[stock] ??= [];
+      byStock[stock].push(t);
+    });
+
+    const map = {};
+    Object.keys(byStock).forEach(stock => {
+      map[stock] = { lots: [], cycleFirstBuy: null, cycleTxns: [] };
+      const byDate = {};
+      byStock[stock].forEach(t => {
+        const d = String(t.date || "");
+        byDate[d] ??= [];
+        byDate[d].push(t);
+      });
+      const dates = Object.keys(byDate).sort((a, b) => parseDateLocal(a) - parseDateLocal(b));
+
+      dates.forEach(date => {
+        const dayRows = byDate[date] || [];
+        const dayBuys = [];
+        const daySells = [];
+
+        dayRows.forEach(t => {
+          const qty = toFiniteNumber(t.qty, 0);
+          const price = toFiniteNumber(t.price, 0);
+          if (qty <= 0) return;
+          if (String(t.type || "").toUpperCase() === "BUY") {
+            const txnBrokerage = resolveTxnBrokerage(t, settings);
+            dayBuys.push({
+              date,
+              qty,
+              remaining: qty,
+              price,
+              brokeragePerUnit: qty > 0 ? txnBrokerage / qty : 0
+            });
+          } else if (String(t.type || "").toUpperCase() === "SELL") {
+            daySells.push({
+              date,
+              qty,
+              remaining: qty,
+              price
+            });
+          }
+        });
+
+        // Square off intraday first so delivery holdings reflect carry positions.
+        daySells.forEach(s => {
+          let rem = s.remaining;
+          for (let i = 0; i < dayBuys.length && rem > 0; i++) {
+            const b = dayBuys[i];
+            if (b.remaining <= 0) continue;
+            const used = Math.min(b.remaining, rem);
+            b.remaining -= used;
+            rem -= used;
+          }
+          s.remaining = rem;
+        });
+
+        dayBuys.forEach(b => {
+          if (b.remaining <= 0) return;
+          if (map[stock].lots.length === 0) {
+            map[stock].cycleFirstBuy = b.date;
+            map[stock].cycleTxns = [];
+          }
+          map[stock].lots.push({
+            qty: b.remaining,
+            price: b.price,
+            brokeragePerUnit: b.brokeragePerUnit,
+            date: b.date
+          });
+          if (captureCycleTxns) {
+            map[stock].cycleTxns.push({
+              date: b.date,
+              type: "BUY",
+              qty: b.remaining,
+              price: b.price
+            });
+          }
+        });
+
+        daySells.forEach(s => {
+          if (s.remaining <= 0) return;
+          const availableQty = map[stock].lots.reduce((a, l) => a + Number(l.qty || 0), 0);
+          const appliedQty = Math.min(s.remaining, availableQty);
+          if (appliedQty <= 0) return;
+
+          if (captureCycleTxns && map[stock].lots.length > 0) {
+            map[stock].cycleTxns.push({
+              date: s.date,
+              type: "SELL",
+              qty: appliedQty,
+              price: s.price
+            });
+          }
+
+          let sellQty = appliedQty;
+          while (sellQty > 0 && map[stock].lots.length) {
+            const lot = map[stock].lots[0];
+            const used = Math.min(lot.qty, sellQty);
+            lot.qty -= used;
+            sellQty -= used;
+            if (lot.qty === 0) map[stock].lots.shift();
+          }
+
+          if (map[stock].lots.length === 0) {
+            map[stock].cycleFirstBuy = null;
+            map[stock].cycleTxns = [];
+          }
+        });
+      });
+    });
+
+    return map;
+  }
+
   function calculateHoldings() {
     const holdingsList = document.getElementById("holdingsList");
     if (!holdingsList) return;
@@ -1383,35 +1527,8 @@ function toggleTxnHistory() {
       db.transaction("transactions", "readonly")
         .objectStore("transactions")
         .getAll().onsuccess = e => {
-        const txns = e.target.result.sort(
-          (a, b) => new Date(a.date) - new Date(b.date)
-        );
-  
-        const map = {};
-
-        txns.forEach(t => {
-          map[t.stock] ??= { lots: [], cycleFirstBuy: null };
-
-          if (t.type === "BUY") {
-            if (map[t.stock].lots.length === 0) {
-              map[t.stock].cycleFirstBuy = t.date;
-            }
-            map[t.stock].lots.push({
-              qty: t.qty,
-              price: t.price,
-              brokeragePerUnit: resolveTxnBrokerage(t, settings) / t.qty
-            });
-          } else {
-            let sellQty = t.qty;
-            while (sellQty > 0 && map[t.stock].lots.length) {
-              const lot = map[t.stock].lots[0];
-              const used = Math.min(lot.qty, sellQty);
-              lot.qty -= used;
-              sellQty -= used;
-              if (lot.qty === 0) map[t.stock].lots.shift();
-            }
-          }
-        });
+        const txns = e.target.result || [];
+        const map = buildPositionHoldingsMap(txns, settings, { captureCycleTxns: true });
   
         holdingsList.innerHTML = "";
   
@@ -1434,10 +1551,23 @@ function toggleTxnHistory() {
           const days = Math.floor(
             (new Date() - parseDateLocal(map[s].cycleFirstBuy)) / 86400000
           );
+          const cyclePanelId = `holding-cycle-${String(s).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+          const cycleTxns = Array.isArray(map[s].cycleTxns) ? map[s].cycleTxns : [];
+          const cycleHtml = cycleTxns.length
+            ? cycleTxns.map(ct => `
+                <div class="holding-cycle-row">
+                  <div class="left-col tiny-label">${ct.date} | ${ct.type} | Qty ${Number(ct.qty || 0)}</div>
+                  <div class="right-col tiny-label">₹${Number(ct.price || 0).toFixed(2)}</div>
+                </div>
+              `).join("")
+            : `<div class="tiny-label text-muted">No current cycle transactions</div>`;
   
           holdingsList.innerHTML += `
             <div class="txn-card">
-              <div class="txn-name">${s}</div>
+              <button type="button" class="holding-name-btn" onclick="toggleHoldingCycle('${cyclePanelId}', this)" aria-expanded="false">
+                <span class="txn-name">${s}</span>
+                <i class="bi bi-chevron-down"></i>
+              </button>
               <div class="txn-sub">
                 Qty ${qty} |
                 Avg ₹${(invested / qty).toFixed(2)} |
@@ -1451,6 +1581,10 @@ function toggleTxnHistory() {
                 <div class="right-col tiny-label ${hasLive && unrealized >= 0 ? "profit" : "loss"}">
                   ${hasLive ? `U P/L ₹${unrealized.toFixed(2)}` : ""}
                 </div>
+              </div>
+              <div id="${cyclePanelId}" class="holding-cycle-wrap" style="display:none">
+                <div class="tiny-label holding-cycle-title">Current cycle transactions</div>
+                ${cycleHtml}
               </div>
             </div>`;
         }
@@ -1747,7 +1881,7 @@ function loadDashboard() {
         (a, b) => new Date(a.date) - new Date(b.date)
       );
 
-      const map = {};
+      const fifoMap = {};
       const brokerageByStock = {};
       let totalPnL = 0;
       let totalBrokerage = 0;
@@ -1760,7 +1894,7 @@ function loadDashboard() {
          STEP 1: Build FIFO Holdings + Realised P/L
          ============================================= */
       txns.forEach(t => {
-        map[t.stock] ??= { lots: [] };
+        fifoMap[t.stock] ??= { lots: [] };
         const txnBrokerage = resolveTxnBrokerage(t, settings);
         totalBrokerage += txnBrokerage;
         const qtyNum = toFiniteNumber(t.qty, 0);
@@ -1774,7 +1908,7 @@ function loadDashboard() {
         brokerageByStock[t.stock].total += txnBrokerage;
 
         if (t.type === "BUY") {
-          map[t.stock].lots.push({
+          fifoMap[t.stock].lots.push({
             qty: qtyNum,
             price: priceNum,
             brokeragePerUnit: qtyNum > 0 ? (txnBrokerage / qtyNum) : 0,
@@ -1785,8 +1919,8 @@ function loadDashboard() {
           let buyCost = 0;
           let buyBrokerage = 0;
 
-          while (sellQty > 0 && map[t.stock].lots.length) {
-            const lot = map[t.stock].lots[0];
+          while (sellQty > 0 && fifoMap[t.stock].lots.length) {
+            const lot = fifoMap[t.stock].lots[0];
             const used = Math.min(lot.qty, sellQty);
 
             buyCost += used * lot.price;
@@ -1796,7 +1930,7 @@ function loadDashboard() {
             sellQty -= used;
 
             if (lot.qty === 0) {
-              map[t.stock].lots.shift();
+              fifoMap[t.stock].lots.shift();
             }
           }
 
@@ -1814,6 +1948,7 @@ function loadDashboard() {
           }
         }
       });
+      const positionMap = buildPositionHoldingsMap(txns, settings, { captureCycleTxns: false });
 
       /* =============================================
          STEP 2: Total Invested (ACTIVE holdings only)
@@ -1823,8 +1958,8 @@ function loadDashboard() {
       let liveUnrealizedTotal = 0;
       let liveUnrealizedCount = 0;
 
-      for (const stock in map) {
-        const lots = map[stock].lots;
+      for (const stock in positionMap) {
+        const lots = positionMap[stock].lots;
         if (!lots.length) continue;
 
         activeHoldings++;
@@ -1902,9 +2037,9 @@ function loadDashboard() {
       const topHoldingsEl = document.getElementById("topHoldingsList");
       const homeInsightEl = document.getElementById("homeInsight");
       if (topHoldingsEl && homeInsightEl) {
-        const rows = Object.keys(map)
+        const rows = Object.keys(positionMap)
           .map(stock => {
-            const lots = map[stock].lots;
+            const lots = positionMap[stock].lots;
             if (!lots.length) return null;
             const invested = lots.reduce(
               (a, l) => a + l.qty * (l.price + l.brokeragePerUnit),
@@ -1916,7 +2051,7 @@ function loadDashboard() {
             const ltp = Number(live?.ltp);
             const hasLive = Number.isFinite(ltp) && ltp > 0;
             const livePnl = hasLive ? (lots.reduce((a, l) => a + l.qty, 0) * ltp) - invested : null;
-            const firstDate = lots[0].date;
+            const firstDate = positionMap[stock].cycleFirstBuy || lots[0].date;
             const days = Math.floor((new Date() - parseDateLocal(firstDate)) / 86400000);
             return { stock, invested, days, livePnl };
           })

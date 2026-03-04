@@ -466,6 +466,17 @@ function debtSaveLocalPlan() {
   renderDebtData();
 }
 
+function initDebtTxnFilters() {
+  const from = document.getElementById("debtTxnFrom");
+  const to = document.getElementById("debtTxnTo");
+  if (!from || !to) return;
+  const today = new Date();
+  const last3Months = new Date();
+  last3Months.setMonth(today.getMonth() - 3);
+  from.value = last3Months.toISOString().split("T")[0];
+  to.value = today.toISOString().split("T")[0];
+}
+
 function loadDebtPage() {
   const borDate = document.getElementById("borDate");
   const repDate = document.getElementById("repDate");
@@ -482,6 +493,7 @@ function loadDebtPage() {
   if (monthlyBudget) monthlyBudget.value = localStorage.getItem("debt_monthly_budget") || "";
   if (investFloor) investFloor.value = localStorage.getItem("debt_invest_floor") || "";
 
+  initDebtTxnFilters();
   bindDebtTxnFilters();
 
   document.getElementById("borrowForm")?.addEventListener("submit", debtAddBorrow);

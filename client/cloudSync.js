@@ -28,7 +28,8 @@ const STORE_NAMES = {
   settings: 'settings',
   debtBorrows: 'debt_borrows',
   debtRepays: 'debt_repays',
-  stockMappings: 'stock_mappings'
+  stockMappings: 'stock_mappings',
+  expenses: 'expenses'
 };
 const DEVICE_ID_KEY = 'pt_device_id';
 const APP_NAME = 'PortfolioTracker';
@@ -231,12 +232,13 @@ function openDatabase() {
 export async function exportAll() {
   const db = await openDatabase();
   try {
-    const [transactions, settingsArr, borrows, repays, stockMappings] = await Promise.all([
+    const [transactions, settingsArr, borrows, repays, stockMappings, expenses] = await Promise.all([
       readStore(db, STORE_NAMES.transactions),
       readStore(db, STORE_NAMES.settings),
       readStore(db, STORE_NAMES.debtBorrows),
       readStore(db, STORE_NAMES.debtRepays),
-      readStore(db, STORE_NAMES.stockMappings)
+      readStore(db, STORE_NAMES.stockMappings),
+      readStore(db, STORE_NAMES.expenses)
     ]);
 
     // settings may be stored as an array or single object depending on app - normalize to object
@@ -254,7 +256,8 @@ export async function exportAll() {
           borrows: borrows || [],
           repays: repays || []
         },
-        stockMappings: stockMappings || []
+        stockMappings: stockMappings || [],
+        expenses: expenses || []
       }
     };
     return payload;
@@ -469,7 +472,8 @@ export async function clearAndRestore(data) {
       STORE_NAMES.settings,
       STORE_NAMES.debtBorrows,
       STORE_NAMES.debtRepays,
-      STORE_NAMES.stockMappings
+      STORE_NAMES.stockMappings,
+      STORE_NAMES.expenses
     ], 'readwrite');
 
     const stores = {
@@ -477,7 +481,8 @@ export async function clearAndRestore(data) {
       settings: tx.objectStore(STORE_NAMES.settings),
       debtBorrows: tx.objectStore(STORE_NAMES.debtBorrows),
       debtRepays: tx.objectStore(STORE_NAMES.debtRepays),
-      stockMappings: tx.objectStore(STORE_NAMES.stockMappings)
+      stockMappings: tx.objectStore(STORE_NAMES.stockMappings),
+      expenses: tx.objectStore(STORE_NAMES.expenses)
     };
 
     // Clear stores
@@ -505,6 +510,10 @@ export async function clearAndRestore(data) {
 
     if (Array.isArray(data.stockMappings)) {
       for (const m of data.stockMappings) stores.stockMappings.add(m);
+    }
+
+    if (Array.isArray(data.expenses)) {
+      for (const ex of data.expenses) stores.expenses.add(ex);
     }
 
     return await new Promise((resolve, reject) => {

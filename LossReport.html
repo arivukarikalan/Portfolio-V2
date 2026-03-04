@@ -53,9 +53,25 @@
 
     <div id="lossDetails" class="mt-3"></div>
   </section>
-</div><script src="JS/Db.js"></script>
+</div>
+<script src="JS/Db.js"></script>
 <script src="JS/App.js"></script>
 <script src="JS/Settings.js"></script>
+<script src="JS/Transactions.js"></script>
 <script src="JS/LossReport.js"></script>
+<script>
+  (function () {
+    const uid = localStorage.getItem("activeUserId");
+    if (!uid) {
+      window.location.href = "./client/profile.html";
+      return;
+    }
+    const boot = async () => {
+      if (typeof window.startApp === "function") await window.startApp();
+      if (typeof loadLossReport === "function") loadLossReport();
+    };
+    boot().catch(err => console.error("Loss report bootstrap failed", err));
+  })();
+</script>
 </body>
 </html>

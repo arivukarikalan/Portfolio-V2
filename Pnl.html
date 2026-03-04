@@ -92,9 +92,20 @@
   (function(){
     const uid = localStorage.getItem('activeUserId');
     if (!uid) { window.location.href = './client/profile.html'; return; }
-    if (typeof window.startApp === 'function') {
-      window.startApp().catch(e => console.error('startApp error', e));
-    }
+    const boot = async () => {
+      if (typeof window.startApp === "function") await window.startApp();
+      if (typeof initPnLFilters === "function") initPnLFilters();
+      ["pnlFrom", "pnlTo", "pnlStock"].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el || el.dataset.wired === "1") return;
+        el.dataset.wired = "1";
+        el.addEventListener("input", () => {
+          if (typeof calculatePnL === "function") calculatePnL();
+        });
+      });
+      if (typeof calculatePnL === "function") calculatePnL();
+    };
+    boot().catch(e => console.error('P/L bootstrap error', e));
   })();
 </script>
 

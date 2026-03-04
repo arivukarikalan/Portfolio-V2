@@ -35,7 +35,7 @@ function openDB() {
   }
   return new Promise((resolve, reject) => {
     const DB_NAME = getDbName();
-    const VERSION = 4;
+    const VERSION = 5;
 
     const request = indexedDB.open(DB_NAME, VERSION);
 
@@ -81,6 +81,14 @@ function openDB() {
         });
         mapStore.createIndex("ticker", "ticker", { unique: false });
         mapStore.createIndex("updatedAt", "updatedAt", { unique: false });
+      }
+
+      /* Store: Daily Expenses */
+      if (!db.objectStoreNames.contains("expenses")) {
+        db.createObjectStore("expenses", {
+          keyPath: "id",
+          autoIncrement: true
+        });
       }
     };
 

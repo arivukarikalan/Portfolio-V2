@@ -23,7 +23,8 @@
       "settings.html": "Settings",
       "debt.html": "Debt Management",
       "lossreport.html": "Loss Report",
-      "stockmappings.html": "Stock Mapping"
+      "stockmappings.html": "Stock Mapping",
+      "expenses.html": "Expenses"
     };
     return map[file] || "Portfolio";
   }
@@ -37,6 +38,7 @@
       { href: "Insights.html", icon: "bi-stars", label: "Insights" },
       { href: "Advanced.html", icon: "bi-speedometer2", label: "Advanced" },
       { href: "Debt.html", icon: "bi-wallet2", label: "Debt" },
+      { href: "Expenses.html", icon: "bi-receipt-cutoff", label: "Expenses" },
       { href: "StockMappings.html", icon: "bi-link-45deg", label: "Stock Mapping" },
       { href: "Settings.html", icon: "bi-sliders", label: "Settings" }
     ];
@@ -208,14 +210,6 @@
       '<div class="app-shell-right" id="appShellActions">' +
         '<button type="button" class="app-shell-action-btn" id="appShellThemeBtn" title="Toggle theme"><i class="bi bi-circle-half"></i></button>' +
         '<button type="button" class="app-shell-action-btn" id="appShellSettingsBtn" title="Settings"><i class="bi bi-sliders"></i></button>' +
-        '<div class="app-shell-profile-wrap">' +
-          '<button type="button" class="app-shell-action-btn" id="appShellProfileBtn" title="Profile actions"><i class="bi bi-person-circle"></i></button>' +
-          '<div class="app-shell-profile-menu" id="appShellProfileMenu">' +
-            '<button type="button" class="app-shell-profile-item" id="appShellCloudBtn"><i class="bi bi-cloud-check"></i> Cloud Status</button>' +
-            '<button type="button" class="app-shell-profile-item danger" id="appShellDeleteTxBtn"><i class="bi bi-trash3"></i> Delete Transactions</button>' +
-            '<button type="button" class="app-shell-profile-item danger" id="appShellDeleteProfileBtn"><i class="bi bi-person-x"></i> Delete Profile + Transactions</button>' +
-          "</div>" +
-        "</div>" +
         '<button type="button" class="app-shell-action-btn" id="appShellLogoutBtn" title="Sign out"><i class="bi bi-box-arrow-right"></i></button>' +
       "</div>";
 
@@ -242,7 +236,17 @@
     drawer.innerHTML =
       '<div class="app-shell-drawer-head">' +
         '<div class="app-shell-brand">Finance App</div>' +
-        '<div class="app-shell-user">' + (activeUser || "Guest") + "</div>" +
+        '<div class="app-shell-user-row">' +
+          '<div class="app-shell-user">' + (activeUser || "Guest") + "</div>" +
+          '<div class="app-shell-profile-wrap">' +
+            '<button type="button" class="app-shell-action-btn app-shell-drawer-profile-btn" id="appShellProfileBtn" title="Profile actions"><i class="bi bi-person-circle"></i></button>' +
+            '<div class="app-shell-profile-menu" id="appShellProfileMenu">' +
+              '<button type="button" class="app-shell-profile-item" id="appShellCloudBtn"><i class="bi bi-cloud-check"></i> Cloud Status</button>' +
+              '<button type="button" class="app-shell-profile-item danger" id="appShellDeleteTxBtn"><i class="bi bi-trash3"></i> Delete Transactions</button>' +
+              '<button type="button" class="app-shell-profile-item danger" id="appShellDeleteProfileBtn"><i class="bi bi-person-x"></i> Delete Profile + Transactions</button>' +
+            "</div>" +
+          "</div>" +
+        "</div>" +
       "</div>" +
       '<nav class="app-shell-nav">' + navHtml + "</nav>";
 
@@ -312,12 +316,21 @@
         closeProfileMenu();
         var uid = String(localStorage.getItem("activeUserId") || "").trim();
         if (!uid) return;
+        cloudBtn.disabled = true;
+        if (typeof window.appShowActionProgress === "function") {
+          window.appShowActionProgress("Checking cloud status...");
+        } else if (typeof window.appShowLoading === "function") {
+          window.appShowLoading("Checking cloud status...");
+        }
         try {
-          if (typeof window.showToast === "function") window.showToast("Loading cloud status...", "info", 1800);
           var status = await fetchCloudStatusForUser(uid);
           openCloudStatusModal(uid, status);
         } catch (e) {
           if (typeof window.showToast === "function") window.showToast("Failed to load cloud status", "error", 3000);
+        } finally {
+          if (typeof window.appHideActionProgress === "function") window.appHideActionProgress();
+          else if (typeof window.appHideLoading === "function") window.appHideLoading();
+          cloudBtn.disabled = false;
         }
       });
     }

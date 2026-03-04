@@ -1145,11 +1145,25 @@ function renderExitAnalysis(containerEl, simResult, suggestions) {
       </div>
 
       <div class="mt-2 tiny-label"><strong>Impact on Holdings</strong></div>
-      <div class="txn-sub">
-        Remaining Qty: ${simResult.remainingQty} | Old Avg: Rs ${simResult.oldAvg.toFixed(2)} | New Avg: Rs ${simResult.newAvgAfterSell ? simResult.newAvgAfterSell.toFixed(2) : "-"} | Avg Improvement: Rs ${simResult.avgImprovement.toFixed(2)}
+      <div class="suggestion-row">
+        <span>Remaining Qty</span>
+        <span>${simResult.remainingQty}</span>
       </div>
-      <div class="txn-sub">
-        Allocation: ${simResult.allocBefore.toFixed(2)}% -> ${simResult.allocAfter.toFixed(2)}% | Historical realized return: ${simResult.myHistReturnPct.toFixed(2)}%
+      <div class="suggestion-row">
+        <span>Old Avg -> New Avg</span>
+        <span>Rs ${simResult.oldAvg.toFixed(2)} -> ${simResult.newAvgAfterSell ? simResult.newAvgAfterSell.toFixed(2) : "-"}</span>
+      </div>
+      <div class="suggestion-row">
+        <span>Avg Improvement</span>
+        <span>Rs ${simResult.avgImprovement.toFixed(2)}</span>
+      </div>
+      <div class="suggestion-row">
+        <span>Allocation</span>
+        <span>${simResult.allocBefore.toFixed(2)}% -> ${simResult.allocAfter.toFixed(2)}%</span>
+      </div>
+      <div class="suggestion-row">
+        <span>Historical Realized Return</span>
+        <span>${simResult.myHistReturnPct.toFixed(2)}%</span>
       </div>
 
       <div class="mt-2 tiny-label"><strong>Post-Sell Strategy</strong></div>

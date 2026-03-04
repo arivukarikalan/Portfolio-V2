@@ -51,6 +51,15 @@
 <script src="JS/Settings.js"></script>
 <script src="JS/Transactions.js"></script>
 <script src="JS/LivePrices.js"></script>
+<script>
+  (function(){
+    const uid = localStorage.getItem('activeUserId');
+    if (!uid) { window.location.href = './client/profile.html'; return; }
+    if (typeof window.startApp === 'function') {
+      window.startApp().catch(e => console.error('startApp error', e));
+    }
+  })();
+</script>
 
 </body>
 </html>

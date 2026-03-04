@@ -365,7 +365,8 @@ export async function createProfile(displayName, userId) {
     data: {
       transactions: [],
       settings: {},
-      debt: { borrows: [], repays: [] }
+      debt: { borrows: [], repays: [] },
+      expenses: []
     }
   };
 
@@ -621,7 +622,8 @@ export async function deleteProfileAndData() {
     transactions: [],
     settings: {},
     debt: { borrows: [], repays: [] },
-    stockMappings: []
+    stockMappings: [],
+    expenses: []
   });
   await uploadToCloud(appsUrl, { userId, eventType: 'profile_delete', skipIfNoChange: false });
 

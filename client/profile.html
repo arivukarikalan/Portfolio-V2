@@ -5,6 +5,9 @@
   <title>Sign in / Create Profile</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="icon" type="image/svg+xml" href="../Assets/Icons/app-favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
   <link href="../CSS/ui.css" rel="stylesheet">
   <link href="../CSS/ui-improvements.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -18,21 +21,101 @@
       justify-content: center;
       padding: 16px;
       background:
-        radial-gradient(1200px 480px at 50% -20%, rgba(15, 111, 255, 0.08), transparent 60%),
-        #f3f7fb;
+        radial-gradient(1200px 560px at 50% -18%, rgba(3, 105, 161, 0.18), transparent 58%),
+        radial-gradient(780px 300px at 100% 100%, rgba(14, 116, 144, 0.09), transparent 65%),
+        #eaf1f7;
+      font-family: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
     }
     .auth-shell {
       width: min(100%, 560px);
       margin: 0 auto;
     }
     .auth-card {
-      border-radius: 14px;
-      border: 1px solid var(--border, #dbe4ef);
-      box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
+      border-radius: 20px;
+      border: 1px solid color-mix(in oklab, #bfdbfe 54%, #dbe4ef);
+      box-shadow: 0 22px 48px rgba(15, 23, 42, 0.14);
+      backdrop-filter: blur(2px);
+      overflow: hidden;
+    }
+    .auth-card .card-body {
+      padding: 26px;
+      background:
+        linear-gradient(168deg, rgba(255, 255, 255, 0.98), rgba(246, 251, 255, 0.95));
+    }
+    .auth-head {
+      margin-bottom: 14px;
+    }
+    .auth-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .02em;
+      color: #075985;
+      background: linear-gradient(180deg, #e0f2fe, #dbeafe);
+      border: 1px solid #bfdbfe;
+      margin-bottom: 8px;
+    }
+    .auth-title {
+      margin: 0;
+      font-family: "Space Grotesk", "Manrope", system-ui, sans-serif;
+      font-size: clamp(1.55rem, 3.4vw, 2rem);
+      line-height: 1.16;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .auth-sub {
+      margin: 7px 0 0;
+      color: #334155;
+      font-size: 13.5px;
+      line-height: 1.45;
+    }
+    #tabNav {
+      border-bottom: 1px solid #d7e4f5;
+      gap: 8px;
+    }
+    #tabNav .nav-link {
+      border: 0;
+      border-radius: 10px 10px 0 0;
+      color: #1e3a8a;
+      font-weight: 700;
+      padding: 9px 15px;
+    }
+    #tabNav .nav-link.active {
+      background: linear-gradient(180deg, #eaf2ff, #f8fbff);
+      border: 1px solid #c7daf6;
+      border-bottom-color: transparent;
+      color: #0b3a84;
+    }
+    .profile-auth-page .form-label.small {
+      font-size: 13px;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+    .profile-auth-page .form-control {
+      min-height: 43px;
+      border-radius: 10px;
+    }
+    .profile-auth-page .btn {
+      border-radius: 10px;
+    }
+    .auth-footnote {
+      border-radius: 11px;
+      padding: 10px 11px;
+      border: 1px dashed #bfdbfe;
+      background: #eff6ff;
+      color: #1f3b69;
     }
     @media (max-width: 480px) {
       body.profile-auth-page { padding: 12px; }
       .auth-shell { width: 100%; }
+      .auth-card { border-radius: 16px; }
+      .auth-card .card-body { padding: 18px; }
+      .auth-sub { font-size: 12.8px; }
     }
     .auth-progress-banner {
       position: fixed;
@@ -65,7 +148,11 @@
   <div class="auth-shell">
     <div class="card shadow-sm auth-card">
       <div class="card-body">
-        <h2 class="card-title mb-3">Sign in or Create Profile</h2>
+        <div class="auth-head">
+          <div class="auth-badge"><i class="bi bi-shield-check"></i> Secure Cloud Profile</div>
+          <h2 class="auth-title">Sign in or Create Profile</h2>
+          <p class="auth-sub">Continue with your User ID and Password to sync your data across devices.</p>
+        </div>
 
         <ul class="nav nav-tabs" id="tabNav">
           <li class="nav-item"><a class="nav-link active" id="tab-login" href="#">Login</a></li>
@@ -98,7 +185,7 @@
           </div>
 
           <!-- Note: using centralized cloud endpoint by default -->
-          <div class="mb-2">
+          <div class="mb-2 auth-footnote">
             <small class="text-muted">This app uses a shared cloud backup endpoint by default. No per-user Apps Script deployment required.</small>
           </div>
 

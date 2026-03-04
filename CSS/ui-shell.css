@@ -145,6 +145,20 @@
   color: var(--muted);
 }
 
+.app-shell-user-row {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.app-shell-drawer-profile-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+}
+
 .app-shell-nav {
   padding: 10px;
   overflow: auto;

@@ -88,3 +88,49 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Mobile safeguards for partial-exit/exit-analyzer content */
+.page-insights #exitAnalyzerPanel .split-row,
+.page-advanced #advExitBoard .split-row {
+  align-items: flex-start;
+}
+
+.page-insights #exitAnalyzerResult .left-col,
+.page-insights #exitAnalyzerResult .right-col,
+.page-advanced #advExitBoard .left-col,
+.page-advanced #advExitBoard .right-col {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.page-insights #exitAnalyzerPanel .suggestion-row {
+  gap: 10px;
+}
+
+@media (max-width: 576px) {
+  .page-insights #exitAnalyzerPanel .row > [class*="col-"] {
+    width: 100%;
+    flex: 0 0 100%;
+  }
+
+  .page-insights #exitAnalyzerPanel .d-flex.gap-2.mb-2 {
+    flex-direction: column;
+  }
+
+  .page-insights #exitAnalyzerPanel .d-flex.gap-2.mb-2 .btn {
+    width: 100%;
+  }
+
+  .page-insights #exitAnalyzerResult .split-row,
+  .page-advanced #advExitBoard .split-row {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .page-insights #exitAnalyzerResult .right-col,
+  .page-advanced #advExitBoard .right-col {
+    width: 100%;
+    text-align: left !important;
+  }
+}

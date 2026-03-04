@@ -587,6 +587,12 @@
     var(--card);
 }
 
+.page-expenses .hero {
+  background:
+    linear-gradient(140deg, rgba(16, 185, 129, 0.16), transparent 62%),
+    var(--card);
+}
+
 /* ================= DETAIL LIST ENHANCEMENTS ================= */
 .list-shell .txn-card {
   border-radius: 14px;
@@ -612,6 +618,43 @@
 .page-holdings #holdingsList .txn-sub {
   color: color-mix(in oklab, var(--muted) 92%, var(--text));
   font-weight: 600;
+}
+
+.page-holdings #holdingsList .holding-name-btn {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0 0 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  color: inherit;
+}
+
+.page-holdings #holdingsList .holding-name-btn i {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.page-holdings #holdingsList .holding-cycle-wrap {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px dashed color-mix(in oklab, var(--border) 72%, transparent);
+}
+
+.page-holdings #holdingsList .holding-cycle-title {
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+.page-holdings #holdingsList .holding-cycle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
 }
 
 .page-pnl .pnl-header,

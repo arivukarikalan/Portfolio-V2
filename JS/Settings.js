@@ -68,7 +68,26 @@ if (typeof window !== "undefined" && typeof window.showToast !== "function") {
   window.showToast = showToast;
 }
 
-function appShowLoading(message = "Please wait...") {
+let APP_LOADING_PROGRESS_TIMER = null;
+
+function stopLoadingProgressTimer() {
+  if (APP_LOADING_PROGRESS_TIMER) {
+    clearInterval(APP_LOADING_PROGRESS_TIMER);
+    APP_LOADING_PROGRESS_TIMER = null;
+  }
+}
+
+function setLoadingProgressValue(percent) {
+  const bar = document.getElementById("appLoadingBarFill");
+  const pctEl = document.getElementById("appLoadingPercent");
+  const wrap = document.getElementById("appLoadingProgressWrap");
+  const p = Math.max(0, Math.min(100, Number(percent || 0)));
+  if (wrap) wrap.style.display = "block";
+  if (bar) bar.style.width = `${p}%`;
+  if (pctEl) pctEl.textContent = `${Math.round(p)}%`;
+}
+
+function appShowLoading(message = "Please wait...", opts = {}) {
   let el = document.getElementById("appLoadingOverlay");
   if (!el) {
     el = document.createElement("div");
@@ -77,19 +96,55 @@ function appShowLoading(message = "Please wait...") {
     el.innerHTML = `
       <div class="app-loading-card">
         <div class="app-loading-spinner" aria-hidden="true"></div>
-        <div class="app-loading-text" id="appLoadingText"></div>
+        <div class="app-loading-main">
+          <div class="app-loading-text" id="appLoadingText"></div>
+          <div class="app-loading-progress-wrap" id="appLoadingProgressWrap" style="display:none">
+            <div class="app-loading-progress-track"><div class="app-loading-progress-fill" id="appLoadingBarFill"></div></div>
+            <div class="app-loading-percent" id="appLoadingPercent">0%</div>
+          </div>
+        </div>
       </div>
     `;
     document.body.appendChild(el);
   }
+  stopLoadingProgressTimer();
   const textEl = document.getElementById("appLoadingText");
+  const progressWrap = document.getElementById("appLoadingProgressWrap");
   if (textEl) textEl.textContent = String(message || "Please wait...");
+  if (progressWrap) progressWrap.style.display = opts?.showProgress ? "block" : "none";
+  if (opts?.showProgress) {
+    setLoadingProgressValue(Number(opts?.progress || 0));
+  }
   el.style.display = "flex";
 }
 
 function appHideLoading() {
+  stopLoadingProgressTimer();
   const el = document.getElementById("appLoadingOverlay");
   if (el) el.style.display = "none";
+}
+
+function appShowActionProgress(message = "Please wait...") {
+  appShowLoading(message, { showProgress: true, progress: 3 });
+  let p = 3;
+  stopLoadingProgressTimer();
+  APP_LOADING_PROGRESS_TIMER = setInterval(() => {
+    if (p >= 92) return;
+    p += Math.max(1, Math.floor((100 - p) / 8));
+    setLoadingProgressValue(p);
+  }, 700);
+}
+
+function appUpdateActionProgress(percent, message) {
+  const textEl = document.getElementById("appLoadingText");
+  if (textEl && message) textEl.textContent = String(message);
+  setLoadingProgressValue(percent);
+}
+
+function appHideActionProgress() {
+  setLoadingProgressValue(100);
+  stopLoadingProgressTimer();
+  setTimeout(() => appHideLoading(), 180);
 }
 
 function appAlertDialog(message, opts = {}) {
@@ -229,6 +284,9 @@ function appPromptDialog(opts = {}) {
 if (typeof window !== "undefined") {
   window.appShowLoading = appShowLoading;
   window.appHideLoading = appHideLoading;
+  window.appShowActionProgress = appShowActionProgress;
+  window.appUpdateActionProgress = appUpdateActionProgress;
+  window.appHideActionProgress = appHideActionProgress;
   window.appAlertDialog = appAlertDialog;
   window.appConfirmDialog = appConfirmDialog;
   window.appPromptDialog = appPromptDialog;
@@ -431,12 +489,13 @@ async function exportAllDataCsv() {
     if (typeof db === "undefined" || !db) {
       if (typeof openDB === "function") await openDB();
     }
-    const [txns, settingsRows, borrows, repays, mappings] = await Promise.all([
+    const [txns, settingsRows, borrows, repays, mappings, expenses] = await Promise.all([
       readStoreAll("transactions"),
       readStoreAll("settings"),
       readStoreAll("debt_borrows"),
       readStoreAll("debt_repays"),
-      readStoreAll("stock_mappings")
+      readStoreAll("stock_mappings"),
+      readStoreAll("expenses")
     ]);
 
     const settings = (settingsRows && settingsRows[0]) ? settingsRows[0] : {};
@@ -452,8 +511,8 @@ async function exportAllDataCsv() {
     csv += `#ACTIVE_USER,${csvCell(localStorage.getItem("activeUserId") || "")}\n\n`;
 
     csv += "#SUMMARY\n";
-    csv += "transactions_count,debt_borrows_count,debt_repays_count,stock_mappings_count,sell_gross,buy_gross,total_brokerage,realized_net_approx\n";
-    csv += `${csvRow([txns.length, borrows.length, repays.length, mappings.length, sellValue.toFixed(2), buyValue.toFixed(2), totalBrokerage.toFixed(2), realizedApprox.toFixed(2)])}\n\n`;
+    csv += "transactions_count,debt_borrows_count,debt_repays_count,stock_mappings_count,expenses_count,sell_gross,buy_gross,total_brokerage,realized_net_approx\n";
+    csv += `${csvRow([txns.length, borrows.length, repays.length, mappings.length, expenses.length, sellValue.toFixed(2), buyValue.toFixed(2), totalBrokerage.toFixed(2), realizedApprox.toFixed(2)])}\n\n`;
 
     csv += "#SETTINGS\n";
     csv += "key,value\n";
@@ -487,6 +546,13 @@ async function exportAllDataCsv() {
     csv += "stock,ticker,exchange,enabled,updatedAt\n";
     (mappings || []).forEach(m => {
       csv += `${csvRow([m.stock, m.ticker, m.exchange, m.enabled, m.updatedAt])}\n`;
+    });
+    csv += "\n";
+
+    csv += "#EXPENSES\n";
+    csv += "id,date,amount,category,note,paymentMode,createdAt,updatedAt\n";
+    (expenses || []).forEach(ex => {
+      csv += `${csvRow([ex.id, ex.date, ex.amount, ex.category, ex.note, ex.paymentMode, ex.createdAt, ex.updatedAt])}\n`;
     });
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
