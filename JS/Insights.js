@@ -774,15 +774,11 @@ function loadInsights() {
             </div>
           `;
 
-          const base = s.cycleFirstBuyPrice;
+          const base = Number(s.cycleLastBuyPrice || (s.cycleBuys || [])[Math.max(0, (s.cycleBuys || []).length - 1)]?.price || s.cycleFirstBuyPrice || 0);
           const level1 = base * (1 - settings.avgLevel1Pct / 100);
           const level2 = base * (1 - settings.avgLevel2Pct / 100);
-          const level1BuyTxn = (s.cycleBuys || [])[1] || null; // second buy in current active cycle
-          const level2BuyTxn = (s.cycleBuys || [])[2] || null; // third buy in current active cycle
-          const level1Done = level1BuyTxn != null;
-          const level2Done = level2BuyTxn != null;
-          const level1Buy = level1BuyTxn ? Number(level1BuyTxn.price) : null;
-          const level2Buy = level2BuyTxn ? Number(level2BuyTxn.price) : null;
+          const level1Done = false;
+          const level2Done = false;
           const maxStockBudget =
             (Number(settings.portfolioSize || 0) * Number(settings.maxAllocationPct || 0)) / 100;
           const remainingBudget = Math.max(0, maxStockBudget - invested);
@@ -833,8 +829,8 @@ function loadInsights() {
           if (advancedList) {
             const buys = s.cycleBuys || [];
             const activeQty = s.lots.reduce((a, l) => a + l.qty, 0);
-            const l1HitIndex = buys.findIndex(b => Number(b.price) <= level1);
-            const l2HitIndex = buys.findIndex(b => Number(b.price) <= level2);
+            const l1HitIndex = -1;
+            const l2HitIndex = -1;
 
             const suggestion = !level1Done
               ? `Wait for L1 zone near ₹${level1.toFixed(2)}. Avoid chasing above last buy price unless conviction is strong.`
@@ -1062,7 +1058,7 @@ function simulatePartialExit(stock, sellQty, sellPrice, lastInsights) {
 
 function suggestReentry(simulation, lastInsights) {
   const { s, settings, sellPrice } = simulation;
-  const base = Number(s.cycleFirstBuyPrice || s.cycleBuys?.[0]?.price || simulation.oldAvg || 0);
+  const base = Number(s.cycleLastBuyPrice || s.cycleBuys?.[Math.max(0, (s.cycleBuys?.length || 1) - 1)]?.price || simulation.oldAvg || 0);
   const lvl1 = base * (1 - Number(settings.avgLevel1Pct || 0) / 100);
   const lvl2 = base * (1 - Number(settings.avgLevel2Pct || 0) / 100);
 

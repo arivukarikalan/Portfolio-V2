@@ -10,6 +10,7 @@
   <link href="CSS/ui-theme.css" rel="stylesheet">
   <link href="CSS/ui-improvements.css" rel="stylesheet">
   <link href="CSS/ui-shell.css" rel="stylesheet">
+  <link href="CSS/advanced.css" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="Assets/Icons/app-favicon.svg">
   <!-- per-page visual tweaks moved to CSS/ui-improvements.css -->
   <script src="JS/common-ui.js"></script>
@@ -32,6 +33,20 @@
       <div class="mb-2">
         <input id="lossFilter" class="form-control form-control-sm" placeholder="Filter by stock">
       </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h3 class="panel-title"><i class="bi bi-graph-down-arrow"></i> Loss Visuals</h3>
+    </div>
+    <div class="panel-body tight">
+      <div class="alloc-layout mb-2">
+        <div id="lossSignalDonut"></div>
+        <div id="lossSignalLegend" class="stack-gap"></div>
+      </div>
+      <div id="lossStockBars" class="chart-wrap mb-2"></div>
+      <div id="lossMonthlyBars" class="chart-wrap"></div>
     </div>
   </section>
 

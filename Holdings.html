@@ -17,6 +17,7 @@
   <link href="CSS/ui-theme.css" rel="stylesheet">
   <link href="CSS/ui-improvements.css" rel="stylesheet">
   <link href="CSS/ui-shell.css" rel="stylesheet">
+  <link href="CSS/advanced.css" rel="stylesheet">
   <script src="JS/common-ui.js"></script>
   <script src="JS/ui-shell.js"></script>
 </head>
@@ -31,6 +32,19 @@
   <section class="hero">
     <h2 class="hero-title">Holdings Snapshot</h2>
     <p class="hero-sub">See active quantities, average cost, and capital currently deployed.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h3 class="panel-title"><i class="bi bi-bar-chart-line"></i> Holdings Visuals</h3>
+    </div>
+    <div class="panel-body tight">
+      <div class="alloc-layout mb-2">
+        <div id="holdingsAllocDonut"></div>
+        <div id="holdingsAllocLegend" class="stack-gap"></div>
+      </div>
+      <div id="holdingsTrendChart" class="chart-wrap"></div>
+    </div>
   </section>
 
   <!-- =================================================

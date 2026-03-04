@@ -24,7 +24,8 @@
       "debt.html": "Debt Management",
       "lossreport.html": "Loss Report",
       "stockmappings.html": "Stock Mapping",
-      "expenses.html": "Expenses"
+      "expenses.html": "Expenses",
+      "advisor.html": "AI Advisor"
     };
     return map[file] || "Portfolio";
   }
@@ -37,6 +38,7 @@
       { href: "Pnl.html", icon: "bi-graph-up", label: "P/L" },
       { href: "Insights.html", icon: "bi-stars", label: "Insights" },
       { href: "Advanced.html", icon: "bi-speedometer2", label: "Advanced" },
+      { href: "Advisor.html", icon: "bi-robot", label: "Advisor" },
       { href: "Debt.html", icon: "bi-wallet2", label: "Debt" },
       { href: "Expenses.html", icon: "bi-receipt-cutoff", label: "Expenses" },
       { href: "StockMappings.html", icon: "bi-link-45deg", label: "Stock Mapping" },

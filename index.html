@@ -21,6 +21,7 @@
   <link href="CSS/ui-theme.css" rel="stylesheet">
   <link href="CSS/ui-improvements.css" rel="stylesheet">
   <link href="CSS/ui-shell.css" rel="stylesheet">
+  <link href="CSS/advanced.css" rel="stylesheet">
   <script src="JS/common-ui.js"></script>
   <script src="JS/ui-shell.js"></script>
 </head>
@@ -50,6 +51,24 @@
   <section class="hero">
     <h2 class="hero-title">Portfolio Pulse</h2>
     <p class="hero-sub">Your capital, realised P/L, and live exposure in one mobile snapshot.</p>
+  </section>
+
+  <section class="panel mt-3">
+    <div class="panel-head">
+      <h3 class="panel-title"><i class="bi bi-bar-chart-line"></i> Portfolio Trends</h3>
+    </div>
+    <div class="panel-body tight">
+      <div class="tiny-label mb-1">Live Unrealized (Last 7 Days)</div>
+      <div id="homeUnrealizedTrend" class="chart-wrap mb-2"></div>
+      <div class="tiny-label mb-1">Capital View (Invested vs Current)</div>
+      <div class="alloc-layout mb-2">
+        <div id="homeCapitalDonut"></div>
+        <div id="homeCapitalLegend" class="stack-gap"></div>
+      </div>
+      <div class="tiny-label mb-1">Top Holdings (Invested)</div>
+      <div id="homeTopHoldingsBars" class="chart-wrap"></div>
+      <div id="homeInsight" class="text-muted mt-2 small"></div>
+    </div>
   </section>
 
   <!-- Section title -->
@@ -113,16 +132,6 @@
           <tbody id="brokerageBreakdownBody"></tbody>
         </table>
       </div>
-    </div>
-  </section>
-
-  <section class="panel mt-3">
-    <div class="panel-head">
-      <h3 class="panel-title"><i class="bi bi-stars"></i> Top Holdings Insight</h3>
-    </div>
-    <div class="panel-body tight">
-      <div id="topHoldingsList" class="stack-gap"></div>
-      <div id="homeInsight" class="text-muted mt-2 small"></div>
     </div>
   </section>
 

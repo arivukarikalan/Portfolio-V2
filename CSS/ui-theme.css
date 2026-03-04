@@ -593,6 +593,21 @@
     var(--card);
 }
 
+.page-advisor .hero {
+  background:
+    linear-gradient(140deg, rgba(56, 189, 248, 0.18), transparent 62%),
+    var(--card);
+}
+
+.page-advisor .panel .txn-card .txn-sub {
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+.page-advisor .panel .txn-card .tiny-label {
+  line-height: 1.42;
+}
+
 /* ================= DETAIL LIST ENHANCEMENTS ================= */
 .list-shell .txn-card {
   border-radius: 14px;

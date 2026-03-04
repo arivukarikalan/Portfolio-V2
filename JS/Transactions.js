@@ -226,7 +226,7 @@ function runPreBuyChecklist() {
         const stockBudget = (Number(settings.portfolioSize || 0) * maxAllocPct) / 100;
         const remainingBudget = stockBudget - postStockInvested;
 
-        const base = Number(cycleBuyTxns[0]?.price || price);
+        const base = Number(cycleBuyTxns[cycleBuyTxns.length - 1]?.price || price);
         const l1 = base * (1 - Number(settings.avgLevel1Pct || 0) / 100);
         const l2 = base * (1 - Number(settings.avgLevel2Pct || 0) / 100);
 
@@ -1343,6 +1343,63 @@ function toggleHoldingCycle(panelId, btnEl) {
     }
   }
 }
+
+function renderHoldingsVisuals(rows) {
+  const donut = document.getElementById("holdingsAllocDonut");
+  const legend = document.getElementById("holdingsAllocLegend");
+  const trend = document.getElementById("holdingsTrendChart");
+  if (!donut && !legend && !trend) return;
+
+  const list = (rows || []).slice().sort((a, b) => Number(b.invested || 0) - Number(a.invested || 0));
+  const totalInvested = list.reduce((a, r) => a + Number(r.invested || 0), 0);
+  if (!list.length || totalInvested <= 0) {
+    if (donut) donut.innerHTML = `<div class="text-muted">No active holdings</div>`;
+    if (legend) legend.innerHTML = "";
+    if (trend) trend.innerHTML = `<div class="text-muted">No trend data</div>`;
+    return;
+  }
+
+  const top = list.slice(0, 6);
+  const colors = ["#2563eb", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
+  let cursor = 0;
+  const gradients = top.map((r, i) => {
+    const pct = (Number(r.invested || 0) / totalInvested) * 100;
+    const seg = `${colors[i % colors.length]} ${cursor}% ${cursor + pct}%`;
+    cursor += pct;
+    return seg;
+  });
+  if (cursor < 100) gradients.push(`#cbd5e1 ${cursor}% 100%`);
+
+  if (donut) {
+    donut.innerHTML = `
+      <div class="adv-donut" style="background:conic-gradient(${gradients.join(",")})"></div>
+      <div class="tiny-label mt-2 text-center">Top holdings allocation</div>
+    `;
+  }
+  if (legend) {
+    legend.innerHTML = top.map((r, i) => `
+      <div class="split-row">
+        <div class="left-col tiny-label"><span class="legend-dot" style="background:${colors[i % colors.length]}"></span>${r.stock}</div>
+        <div class="right-col tiny-label">${((Number(r.invested || 0) / totalInvested) * 100).toFixed(2)}%</div>
+      </div>
+    `).join("");
+  }
+  if (trend) {
+    const maxAbs = Math.max(1, ...list.map(r => Math.abs(Number(r.unrealized || 0))));
+    trend.innerHTML = list.slice(0, 8).map(r => {
+      const v = Number(r.unrealized || 0);
+      const w = (Math.abs(v) / maxAbs) * 100;
+      const cls = v >= 0 ? "profit" : "loss";
+      return `
+        <div class="adv-bar-row">
+          <div class="adv-bar-label">${r.stock}</div>
+          <div class="adv-bar-track"><div class="adv-bar ${cls}" style="width:${w}%"></div></div>
+          <div class="adv-bar-value ${cls}">${v >= 0 ? "+" : "-"}${Math.abs(v).toFixed(2)}</div>
+        </div>
+      `;
+    }).join("");
+  }
+}
   
   function editTxn(id) {
     db.transaction("transactions", "readonly")
@@ -1531,6 +1588,7 @@ function toggleHoldingCycle(panelId, btnEl) {
         const map = buildPositionHoldingsMap(txns, settings, { captureCycleTxns: true });
   
         holdingsList.innerHTML = "";
+        const visualRows = [];
   
         for (const s in map) {
           const lots = map[s].lots;
@@ -1562,6 +1620,12 @@ function toggleHoldingCycle(panelId, btnEl) {
               `).join("")
             : `<div class="tiny-label text-muted">No current cycle transactions</div>`;
   
+          visualRows.push({
+            stock: s,
+            invested,
+            unrealized: hasLive ? unrealized : 0
+          });
+
           holdingsList.innerHTML += `
             <div class="txn-card">
               <button type="button" class="holding-name-btn" onclick="toggleHoldingCycle('${cyclePanelId}', this)" aria-expanded="false">
@@ -1593,6 +1657,7 @@ function toggleHoldingCycle(panelId, btnEl) {
           holdingsList.innerHTML =
             `<div class="txn-card text-center text-muted">No holdings</div>`;
         }
+        renderHoldingsVisuals(visualRows);
         };
     });
   }
@@ -1704,6 +1769,8 @@ function applyPnLFilters(data) {
 function renderPnLVisualSummary(data) {
   const grid = document.getElementById("pnlSummaryGrid");
   const chart = document.getElementById("pnlMonthlyChart");
+  const donut = document.getElementById("pnlSignalDonut");
+  const legend = document.getElementById("pnlSignalLegend");
   if (!grid || !chart) return;
 
   if (!Array.isArray(data) || !data.length) {
@@ -1714,6 +1781,8 @@ function renderPnLVisualSummary(data) {
       <div class="stat-card"><div class="stat-label">Avg Hold</div><div class="stat-value">0d</div></div>
     `;
     chart.innerHTML = `<div class="text-muted">No realized trades in selected range.</div>`;
+    if (donut) donut.innerHTML = `<div class="text-muted">No signal mix</div>`;
+    if (legend) legend.innerHTML = "";
     return;
   }
 
@@ -1729,6 +1798,20 @@ function renderPnLVisualSummary(data) {
     <div class="stat-card"><div class="stat-label">Avg Return</div><div class="stat-value ${avgReturn >= 0 ? "profit" : "loss"}">${avgReturn.toFixed(2)}%</div></div>
     <div class="stat-card"><div class="stat-label">Avg Hold</div><div class="stat-value">${avgHold.toFixed(0)}d</div></div>
   `;
+  if (donut) {
+    const winPct = (wins / Math.max(1, data.length)) * 100;
+    donut.innerHTML = `
+      <div class="adv-donut" style="background:conic-gradient(#22c55e 0% ${winPct}%, #ef4444 ${winPct}% 100%)"></div>
+      <div class="tiny-label mt-2 text-center">Win/Loss Mix</div>
+    `;
+  }
+  if (legend) {
+    legend.innerHTML = `
+      <div class="split-row"><div class="left-col tiny-label"><span class="legend-dot" style="background:#22c55e"></span>Wins</div><div class="right-col tiny-label">${wins}</div></div>
+      <div class="split-row"><div class="left-col tiny-label"><span class="legend-dot" style="background:#ef4444"></span>Losses</div><div class="right-col tiny-label">${losses}</div></div>
+      <div class="split-row"><div class="left-col tiny-label">Win Ratio</div><div class="right-col tiny-label">${((wins / Math.max(1, data.length)) * 100).toFixed(2)}%</div></div>
+    `;
+  }
 
   const monthMap = {};
   data.forEach(t => {
@@ -2034,61 +2117,157 @@ function loadDashboard() {
           : `<tr><td colspan="4" class="text-center text-muted">No brokerage data</td></tr>`;
       }
 
-      const topHoldingsEl = document.getElementById("topHoldingsList");
       const homeInsightEl = document.getElementById("homeInsight");
-      if (topHoldingsEl && homeInsightEl) {
-        const rows = Object.keys(positionMap)
-          .map(stock => {
-            const lots = positionMap[stock].lots;
-            if (!lots.length) return null;
-            const invested = lots.reduce(
-              (a, l) => a + l.qty * (l.price + l.brokeragePerUnit),
-              0
-            );
-            const live = (typeof window !== "undefined" && typeof window.getLivePriceForStock === "function")
-              ? window.getLivePriceForStock(stock)
-              : null;
-            const ltp = Number(live?.ltp);
-            const hasLive = Number.isFinite(ltp) && ltp > 0;
-            const livePnl = hasLive ? (lots.reduce((a, l) => a + l.qty, 0) * ltp) - invested : null;
-            const firstDate = positionMap[stock].cycleFirstBuy || lots[0].date;
-            const days = Math.floor((new Date() - parseDateLocal(firstDate)) / 86400000);
-            return { stock, invested, days, livePnl };
-          })
-          .filter(Boolean)
-          .sort((a, b) => b.invested - a.invested);
-
-        const top2 = rows.slice(0, 2);
-        if (!top2.length) {
-          topHoldingsEl.innerHTML = `<div class="text-muted">No active holdings</div>`;
-          homeInsightEl.textContent = "";
-        } else {
-          topHoldingsEl.innerHTML = top2.map(r => `
-            <div class="txn-card">
-              <div class="split-row">
-                <div class="left-col">
-                  <div class="txn-name">${r.stock}</div>
-                  <div class="txn-sub">Hold Days: ${r.days}</div>
-                </div>
-                  <div class="right-col">
-                    <div class="metric-strong text-primary">₹${toFiniteNumber(r.invested, 0).toFixed(2)}</div>
-                    <div class="tiny-label">Invested</div>
-                    <div class="tiny-label ${r.livePnl == null ? "" : (r.livePnl >= 0 ? "profit" : "loss")}">
-                      ${r.livePnl == null ? "Live P/L: -" : `Live P/L: ₹${r.livePnl.toFixed(2)}`}
-                    </div>
-                  </div>
-                </div>
-              </div>
-          `).join("");
-
-          const top2Invested = top2.reduce((a, r) => a + r.invested, 0);
-          const concentration = totalInvested > 0 ? (top2Invested / totalInvested) * 100 : 0;
-          homeInsightEl.textContent =
-            `Top 2 concentration: ${concentration.toFixed(2)}% of active invested capital.`;
-        }
+      const activeRows = Object.keys(positionMap)
+        .map(stock => {
+          const lots = positionMap[stock].lots;
+          if (!lots.length) return null;
+          const qty = lots.reduce((a, l) => a + Number(l.qty || 0), 0);
+          const invested = lots.reduce(
+            (a, l) => a + l.qty * (l.price + l.brokeragePerUnit),
+            0
+          );
+          const avg = qty > 0 ? invested / qty : 0;
+          const live = (typeof window !== "undefined" && typeof window.getLivePriceForStock === "function")
+            ? window.getLivePriceForStock(stock)
+            : null;
+          const ltp = Number(live?.ltp);
+          const hasLive = Number.isFinite(ltp) && ltp > 0;
+          const livePnl = hasLive ? (qty * ltp) - invested : 0;
+          return { stock, qty, invested, avg, livePnl };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.invested - a.invested);
+      const liveCurrentTotal = activeRows.reduce((a, r) => a + toFiniteNumber(r.invested, 0) + toFiniteNumber(r.livePnl, 0), 0);
+      renderHomeDashboardVisuals(activeRows, {
+        totalInvested,
+        liveCurrentTotal,
+        liveUnrealizedTotal,
+        hasLive: liveUnrealizedCount > 0
+      });
+      if (homeInsightEl) {
+        const top2 = activeRows.slice(0, 2);
+        const top2Invested = top2.reduce((a, r) => a + toFiniteNumber(r.invested, 0), 0);
+        const concentration = totalInvested > 0 ? (top2Invested / totalInvested) * 100 : 0;
+        homeInsightEl.textContent = top2.length
+          ? `Top 2 concentration: ${concentration.toFixed(2)}% of active invested capital.`
+          : "";
       }
     };
   });
+}
+
+function getHomeUnrealizedHistoryKey() {
+  try {
+    const uid = localStorage.getItem("activeUserId") || "guest";
+    return `home_unrealized_history_v1_${uid}`;
+  } catch (e) {
+    return "home_unrealized_history_v1_guest";
+  }
+}
+
+function readHomeUnrealizedHistory() {
+  try {
+    const raw = localStorage.getItem(getHomeUnrealizedHistoryKey());
+    const rows = raw ? JSON.parse(raw) : [];
+    return Array.isArray(rows) ? rows : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function writeHomeUnrealizedHistory(rows) {
+  try {
+    localStorage.setItem(getHomeUnrealizedHistoryKey(), JSON.stringify(rows || []));
+  } catch (e) {}
+}
+
+function upsertHomeUnrealizedSnapshot(value) {
+  const today = new Date().toISOString().slice(0, 10);
+  const rows = readHomeUnrealizedHistory().filter(r => r && typeof r.date === "string");
+  const next = rows.filter(r => r.date !== today);
+  next.push({ date: today, value: toFiniteNumber(value, 0) });
+  next.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  writeHomeUnrealizedHistory(next.slice(-40));
+  return next.slice(-7);
+}
+
+function renderHomeDashboardVisuals(activeRows, stats) {
+  const unrealizedTrendEl = document.getElementById("homeUnrealizedTrend");
+  const capitalDonutEl = document.getElementById("homeCapitalDonut");
+  const capitalLegendEl = document.getElementById("homeCapitalLegend");
+  const holdingsBarsEl = document.getElementById("homeTopHoldingsBars");
+  if (!unrealizedTrendEl && !capitalDonutEl && !capitalLegendEl && !holdingsBarsEl) return;
+
+  const rows = (activeRows || []).slice();
+  const totalInvested = toFiniteNumber(stats?.totalInvested, 0);
+  const liveCurrentTotal = toFiniteNumber(stats?.liveCurrentTotal, 0);
+  const liveUnrealizedTotal = toFiniteNumber(stats?.liveUnrealizedTotal, 0);
+  const hasLive = !!stats?.hasLive;
+
+  if (unrealizedTrendEl) {
+    const trendPoints = hasLive ? upsertHomeUnrealizedSnapshot(liveUnrealizedTotal) : readHomeUnrealizedHistory().slice(-7);
+    if (!trendPoints.length) {
+      unrealizedTrendEl.innerHTML = `<div class="text-muted">No unrealized trend yet.</div>`;
+    } else {
+      const maxAbs = Math.max(1, ...trendPoints.map(p => Math.abs(toFiniteNumber(p.value, 0))));
+      unrealizedTrendEl.innerHTML = trendPoints.map(p => {
+        const v = toFiniteNumber(p.value, 0);
+        const w = (Math.abs(v) / maxAbs) * 100;
+        const cls = v >= 0 ? "profit" : "loss";
+        const label = String(p.date || "").slice(5);
+        return `
+          <div class="adv-bar-row">
+            <div class="adv-bar-label">${label}</div>
+            <div class="adv-bar-track"><div class="adv-bar ${cls}" style="width:${w}%"></div></div>
+            <div class="adv-bar-value ${cls}">₹${v.toFixed(2)}</div>
+          </div>
+        `;
+      }).join("");
+    }
+  }
+
+  if (capitalDonutEl || capitalLegendEl) {
+    const invested = Math.max(0, totalInvested);
+    const current = Math.max(0, liveCurrentTotal || totalInvested);
+    const sum = Math.max(1, invested + current);
+    const investedPct = (invested / sum) * 100;
+    if (capitalDonutEl) {
+      capitalDonutEl.innerHTML = `
+        <div class="adv-donut" style="background:conic-gradient(#2563eb 0% ${investedPct}%, #22c55e ${investedPct}% 100%)"></div>
+        <div class="tiny-label mt-2 text-center">${hasLive ? "Live capital mix" : "Live price unavailable"}</div>
+      `;
+    }
+    if (capitalLegendEl) {
+      const delta = current - invested;
+      capitalLegendEl.innerHTML = `
+        <div class="split-row"><div class="left-col tiny-label"><span class="legend-dot" style="background:#2563eb"></span>Invested</div><div class="right-col tiny-label">₹${invested.toFixed(2)}</div></div>
+        <div class="split-row"><div class="left-col tiny-label"><span class="legend-dot" style="background:#22c55e"></span>Current</div><div class="right-col tiny-label">₹${current.toFixed(2)}</div></div>
+        <div class="split-row"><div class="left-col tiny-label">Live Unrealized</div><div class="right-col tiny-label ${delta >= 0 ? "profit" : "loss"}">₹${delta.toFixed(2)}</div></div>
+      `;
+    }
+  }
+
+  if (holdingsBarsEl) {
+    if (!rows.length) {
+      holdingsBarsEl.innerHTML = `<div class="text-muted">No active holdings for bar chart.</div>`;
+    } else {
+      const total = rows.reduce((a, r) => a + toFiniteNumber(r.invested, 0), 0);
+      const maxInv = Math.max(1, ...rows.map(r => toFiniteNumber(r.invested, 0)));
+      holdingsBarsEl.innerHTML = rows.slice(0, 7).map(r => {
+          const v = toFiniteNumber(r.invested, 0);
+          const width = (v / maxInv) * 100;
+          const allocPct = total > 0 ? (v / total) * 100 : 0;
+          return `
+            <div class="adv-bar-row">
+              <div class="adv-bar-label">${r.stock}</div>
+              <div class="adv-bar-track"><div class="adv-bar" style="width:${width}%;background:linear-gradient(90deg,#2563eb,#38bdf8)"></div></div>
+              <div class="adv-bar-value">${allocPct.toFixed(2)}%</div>
+            </div>
+          `;
+        }).join("");
+    }
+  }
 }
 
 function toggleBrokerageBreakdown() {

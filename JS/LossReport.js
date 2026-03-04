@@ -163,6 +163,7 @@ function loadLossReport() {
 
       const totalLossAll = rows.reduce((s,r) => s + r.totalLoss, 0);
       summaryEl.innerHTML = `Total loss across stocks: ${totalLossAll < 0 ? '-₹' + Math.abs(totalLossAll).toFixed(2) : '₹0.00'} | Stocks: ${rows.length}`;
+      renderLossVisuals(rows);
 
       function renderRows(filter) {
         const body = rows.filter(r => !filter || r.stock.includes(filter.toUpperCase())).map(r => `
@@ -231,4 +232,89 @@ function loadLossReport() {
       filterInput.addEventListener('input', () => renderRows(filterInput.value || ""));
     };
   });
+}
+
+function renderLossVisuals(rows) {
+  const donut = document.getElementById("lossSignalDonut");
+  const legend = document.getElementById("lossSignalLegend");
+  const stockBars = document.getElementById("lossStockBars");
+  const monthlyBars = document.getElementById("lossMonthlyBars");
+  if (!donut && !legend && !stockBars && !monthlyBars) return;
+
+  const list = Array.isArray(rows) ? rows.slice() : [];
+  if (!list.length) {
+    if (donut) donut.innerHTML = `<div class="text-muted">No loss signals</div>`;
+    if (legend) legend.innerHTML = "";
+    if (stockBars) stockBars.innerHTML = `<div class="text-muted">No stock loss data</div>`;
+    if (monthlyBars) monthlyBars.innerHTML = `<div class="text-muted">No monthly loss data</div>`;
+    return;
+  }
+
+  const totalLossAbs = Math.abs(list.reduce((s, r) => s + Number(r.totalLoss || 0), 0));
+  const totalSellCount = list.reduce((s, r) => s + Number(r.lossSells || 0), 0);
+
+  if (donut) {
+    const highHold = list.filter(r => Number(r.avgHold || 0) > 30).length;
+    const lowHold = Math.max(0, list.length - highHold);
+    const highPct = (highHold / Math.max(1, list.length)) * 100;
+    donut.innerHTML = `
+      <div class="adv-donut" style="background:conic-gradient(#ef4444 0% ${highPct}%, #f59e0b ${highPct}% 100%)"></div>
+      <div class="tiny-label mt-2 text-center">Loss Hold Mix</div>
+    `;
+    if (legend) {
+      legend.innerHTML = `
+        <div class="split-row"><div class="left-col tiny-label"><span class="legend-dot" style="background:#ef4444"></span>Avg hold > 30d</div><div class="right-col tiny-label">${highHold}</div></div>
+        <div class="split-row"><div class="left-col tiny-label"><span class="legend-dot" style="background:#f59e0b"></span>Avg hold <= 30d</div><div class="right-col tiny-label">${lowHold}</div></div>
+        <div class="split-row"><div class="left-col tiny-label">Total loss</div><div class="right-col tiny-label">₹${totalLossAbs.toFixed(2)}</div></div>
+        <div class="split-row"><div class="left-col tiny-label">Loss sells</div><div class="right-col tiny-label">${totalSellCount}</div></div>
+      `;
+    }
+  }
+
+  if (stockBars) {
+    const maxAbs = Math.max(1, ...list.map(r => Math.abs(Number(r.totalLoss || 0))));
+    stockBars.innerHTML = list.slice(0, 8).map(r => {
+      const v = Math.abs(Number(r.totalLoss || 0));
+      const w = (v / maxAbs) * 100;
+      return `
+        <div class="adv-bar-row">
+          <div class="adv-bar-label">${r.stock}</div>
+          <div class="adv-bar-track"><div class="adv-bar loss" style="width:${w}%"></div></div>
+          <div class="adv-bar-value loss">-₹${v.toFixed(2)}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  if (monthlyBars) {
+    const monthMap = {};
+    list.forEach(r => {
+      const stockTxns = Array.isArray(r.txns) ? r.txns : [];
+      stockTxns.forEach((tx, idx) => {
+        if ((tx.type || tx.txnType || "").toString().toUpperCase() !== "SELL") return;
+        const d = computeSellDetails(stockTxns, idx);
+        if (!d || Number(d.net || 0) >= 0) return;
+        const m = String(tx.date || "").slice(0, 7);
+        if (!m) return;
+        monthMap[m] = (monthMap[m] || 0) + Number(d.net || 0);
+      });
+    });
+    const months = Object.keys(monthMap).sort();
+    if (!months.length) {
+      monthlyBars.innerHTML = `<div class="text-muted">No monthly loss data</div>`;
+    } else {
+      const maxAbs = Math.max(1, ...months.map(m => Math.abs(Number(monthMap[m] || 0))));
+      monthlyBars.innerHTML = months.map(m => {
+        const v = Number(monthMap[m] || 0);
+        const w = (Math.abs(v) / maxAbs) * 100;
+        return `
+          <div class="adv-bar-row">
+            <div class="adv-bar-label">${m}</div>
+            <div class="adv-bar-track"><div class="adv-bar loss" style="width:${w}%"></div></div>
+            <div class="adv-bar-value loss">-₹${Math.abs(v).toFixed(2)}</div>
+          </div>
+        `;
+      }).join("");
+    }
+  }
 }
