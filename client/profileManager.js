@@ -101,6 +101,10 @@ function delay(ms) {
 
 function showBusyOverlay(message) {
   try {
+    if (typeof window !== 'undefined' && typeof window.appShowActionProgress === 'function') {
+      window.appShowActionProgress(message || 'Please wait...');
+      return;
+    }
     if (typeof window !== 'undefined' && typeof window.appShowLoading === 'function') {
       window.appShowLoading(message || 'Please wait...');
       return;
@@ -127,6 +131,10 @@ function showBusyOverlay(message) {
 
 function hideBusyOverlay() {
   try {
+    if (typeof window !== 'undefined' && typeof window.appHideActionProgress === 'function') {
+      window.appHideActionProgress();
+      return;
+    }
     if (typeof window !== 'undefined' && typeof window.appHideLoading === 'function') {
       window.appHideLoading();
       return;

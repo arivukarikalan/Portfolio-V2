@@ -117,23 +117,54 @@
       .auth-card .card-body { padding: 18px; }
       .auth-sub { font-size: 12.8px; }
     }
-    .auth-progress-banner {
+    .auth-loading-overlay {
       position: fixed;
-      top: calc(79px + env(safe-area-inset-top, 0px));
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 12000;
-      background: #e8f1ff;
-      color: #0f3f94;
-      border: 1px solid #bfd6ff;
-      border-radius: 10px;
-      padding: 8px 12px;
-      font-size: 13px;
-      font-weight: 700;
-      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+      inset: 0;
+      z-index: 12550;
+      background: rgba(9, 18, 34, 0.36);
       display: none;
-      width: min(92vw, 420px);
-      text-align: center;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+    }
+    .auth-loading-card {
+      width: min(94vw, 420px);
+      border: 1px solid #bfd6ff;
+      border-radius: 14px;
+      background: #f8fbff;
+      box-shadow: 0 16px 34px rgba(15, 23, 42, 0.24);
+      padding: 14px;
+    }
+    .auth-loading-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #0f3f94;
+      margin-bottom: 10px;
+    }
+    .auth-loading-track {
+      height: 7px;
+      border-radius: 999px;
+      background: #dbeafe;
+      overflow: hidden;
+    }
+    .auth-loading-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #2563eb, #0ea5e9);
+      transition: width 220ms ease;
+    }
+    .auth-loading-pct {
+      margin-top: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #1d4ed8;
+      text-align: right;
+    }
+    body.profile-auth-page .toast-host {
+      top: auto !important;
+      bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+      transform: translateX(-50%) !important;
+      z-index: 13000 !important;
     }
   </style>
 
@@ -144,7 +175,13 @@
   </script>
 </head>
 <body class="profile-auth-page">
-  <div id="auth-progress" class="auth-progress-banner">Please wait, verifying credentials...</div>
+  <div id="authLoadingOverlay" class="auth-loading-overlay" aria-live="polite" aria-busy="true">
+    <div class="auth-loading-card">
+      <div id="authLoadingText" class="auth-loading-title">Please wait, verifying credentials...</div>
+      <div class="auth-loading-track"><div id="authLoadingFill" class="auth-loading-fill"></div></div>
+      <div id="authLoadingPct" class="auth-loading-pct">0%</div>
+    </div>
+  </div>
   <div class="auth-shell">
     <div class="card shadow-sm auth-card">
       <div class="card-body">
@@ -271,15 +308,40 @@
     }
 
     const statusEl = document.getElementById('status');
-    const authProgressEl = document.getElementById('auth-progress');
+    const authLoadingOverlay = document.getElementById('authLoadingOverlay');
+    const authLoadingText = document.getElementById('authLoadingText');
+    const authLoadingFill = document.getElementById('authLoadingFill');
+    const authLoadingPct = document.getElementById('authLoadingPct');
+    let AUTH_LOADING_TIMER = null;
+    let AUTH_LOADING_VALUE = 0;
+
     function showAuthProgress(text) {
-      if (!authProgressEl) return;
-      authProgressEl.textContent = text || 'Please wait, verifying credentials...';
-      authProgressEl.style.display = 'block';
+      if (!authLoadingOverlay) return;
+      if (authLoadingText) authLoadingText.textContent = text || 'Please wait, verifying credentials...';
+      AUTH_LOADING_VALUE = 3;
+      if (authLoadingFill) authLoadingFill.style.width = AUTH_LOADING_VALUE + '%';
+      if (authLoadingPct) authLoadingPct.textContent = Math.round(AUTH_LOADING_VALUE) + '%';
+      authLoadingOverlay.style.display = 'flex';
+      if (AUTH_LOADING_TIMER) clearInterval(AUTH_LOADING_TIMER);
+      AUTH_LOADING_TIMER = setInterval(() => {
+        if (AUTH_LOADING_VALUE >= 92) return;
+        AUTH_LOADING_VALUE += Math.max(1, Math.floor((100 - AUTH_LOADING_VALUE) / 9));
+        if (authLoadingFill) authLoadingFill.style.width = AUTH_LOADING_VALUE + '%';
+        if (authLoadingPct) authLoadingPct.textContent = Math.round(AUTH_LOADING_VALUE) + '%';
+      }, 700);
     }
     function hideAuthProgress() {
-      if (!authProgressEl) return;
-      authProgressEl.style.display = 'none';
+      if (!authLoadingOverlay) return;
+      if (AUTH_LOADING_TIMER) {
+        clearInterval(AUTH_LOADING_TIMER);
+        AUTH_LOADING_TIMER = null;
+      }
+      AUTH_LOADING_VALUE = 100;
+      if (authLoadingFill) authLoadingFill.style.width = '100%';
+      if (authLoadingPct) authLoadingPct.textContent = '100%';
+      setTimeout(() => {
+        if (authLoadingOverlay) authLoadingOverlay.style.display = 'none';
+      }, 160);
     }
     function showTopToast(message, type = 'info', durationMs) {
       const text = String(message || '').trim();
@@ -308,10 +370,12 @@
       toast.innerHTML = `
         <div class="app-toast-inner">
           <span class="app-toast-icon"><i class="bi ${iconClass}"></i></span>
-          <span class="app-toast-text">${text}</span>
+          <span class="app-toast-text"></span>
         </div>
         <span class="app-toast-progress"></span>
       `;
+      const txt = toast.querySelector('.app-toast-text');
+      if (txt) txt.textContent = text;
       host.appendChild(toast);
       while (host.children.length > 3) host.removeChild(host.firstChild);
       setTimeout(() => {
@@ -399,17 +463,19 @@
         // Create flow
         document.getElementById('create-btn').addEventListener('click', async () => {
           try {
+            showAuthProgress('Creating profile and preparing cloud sync...');
             status('Creating profile...');
             const name = document.getElementById('create-name').value.trim();
             const userId = document.getElementById('create-userid').value.trim();
-            if (!name) { status('Enter a display name', true); return; }
-            if (!userId) { status('Enter a User ID (unique)', true); return; }
+            if (!name) { status('Enter a display name', true); hideAuthProgress(); return; }
+            if (!userId) { status('Enter a User ID (unique)', true); hideAuthProgress(); return; }
 
             const res = await createProfile(name, userId);
             if (!res || !res.ok) {
               // surface cloud/user id errors
               const msg = (res && (res.reason || res.message)) ? (res.reason + ': ' + (res.message || '')) : 'Create failed';
               status(msg, true);
+              hideAuthProgress();
               return;
             }
 
@@ -418,9 +484,11 @@
             document.getElementById('recovery-key').value = res.recoveryKey;
             document.getElementById('created-info').style.display = 'block';
             status('Profile created. COPY and SAVE the password now. It will NOT be stored locally.', false, 'success');
+            hideAuthProgress();
           } catch (e) {
             console.error('createProfile error', e);
             status('Create failed: ' + (e.message || e), true);
+            hideAuthProgress();
           }
         });
 

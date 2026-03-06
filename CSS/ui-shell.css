@@ -134,9 +134,28 @@
   border-bottom: 1px solid var(--border);
 }
 
+.app-shell-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .app-shell-brand {
   font-weight: 900;
   font-size: 1rem;
+}
+
+.app-shell-close-btn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-soft);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .app-shell-user {

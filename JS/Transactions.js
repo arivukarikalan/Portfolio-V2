@@ -53,6 +53,298 @@ function parseDateLocal(dateStr) {
   return new Date(y, m - 1, d);
 }
 
+function normalizeTrendDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const core = raw.includes("T") ? raw.split("T")[0] : raw.slice(0, 10);
+  const text = core.replace(/\//g, "-");
+
+  const ymd = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (ymd) {
+    const y = Number(ymd[1]);
+    const m = Number(ymd[2]);
+    const d = Number(ymd[3]);
+    if (y >= 1900 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+
+  const dmy = text.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (dmy) {
+    const d = Number(dmy[1]);
+    const m = Number(dmy[2]);
+    const y = Number(dmy[3]);
+    if (y >= 1900 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+
+  const dt = new Date(raw);
+  if (Number.isNaN(dt.getTime())) return "";
+  const y = dt.getFullYear();
+  const m = dt.getMonth() + 1;
+  const d = dt.getDate();
+  return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+function getHoldingTrendCloudEndpoint() {
+  if (typeof window === "undefined") return "";
+  return window.APP_LIVE_PRICE_URL || window.APP_APPS_SCRIPT_URL || "";
+}
+
+function normalizeTickerForTrend(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  if (!raw) return "";
+  if (raw.startsWith("NSE:")) return raw;
+  const cleaned = raw.replace(/^NSE\s*:/, "").replace(/[^A-Z0-9.-]/g, "");
+  return cleaned ? `NSE:${cleaned}` : "";
+}
+
+async function getMappedTickerForStock(stockName) {
+  const stock = normalizeStockName(stockName);
+  if (!stock) return "";
+  const fallback = normalizeTickerForTrend(stock);
+  if (!db?.objectStoreNames?.contains("stock_mappings")) return fallback;
+
+  return await new Promise(resolve => {
+    try {
+      db.transaction("stock_mappings", "readonly")
+        .objectStore("stock_mappings")
+        .getAll().onsuccess = (e) => {
+          const all = Array.isArray(e?.target?.result) ? e.target.result : [];
+          const exact = all.find(r => normalizeStockName(r?.stock) === stock);
+          const mapped = normalizeTickerForTrend(exact?.ticker || "");
+          resolve(mapped || fallback);
+        };
+    } catch (e) {
+      resolve(fallback);
+    }
+  });
+}
+
+async function fetchHoldingCloudTrend(stockName, days = 7, options = {}) {
+  const fast = !!options.fast;
+  const timeoutMs = Math.max(4000, Number(options.timeoutMs || 8000));
+  const key = `${normalizeStockName(stockName)}|${Math.max(2, Math.min(30, Number(days || 7)))}|${fast ? "fast" : "full"}`;
+  if (!window.__holdingTrendCache) window.__holdingTrendCache = {};
+  const cached = window.__holdingTrendCache[key];
+  if (cached && (Date.now() - Number(cached.ts || 0) < 60000)) {
+    return cached.payload;
+  }
+
+  const stock = normalizeStockName(stockName);
+  const endpoint = getHoldingTrendCloudEndpoint();
+  if (!stock || !endpoint) {
+    return { ok: false, reason: "endpoint_missing", rows: [], ticker: "" };
+  }
+
+  const ticker = await getMappedTickerForStock(stock);
+  if (!ticker) return { ok: false, reason: "ticker_missing", rows: [], ticker: "" };
+
+  try {
+    const url = new URL(endpoint);
+    url.searchParams.set("mode", "history");
+    url.searchParams.set("ticker", ticker);
+    url.searchParams.set("days", String(Math.max(2, Math.min(30, Number(days || 7)))));
+    if (fast) url.searchParams.set("fast", "1");
+    const ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    let timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+    const res = await fetch(url.toString(), { method: "GET", signal: ctrl ? ctrl.signal : undefined })
+      .finally(() => {
+        if (timer) clearTimeout(timer);
+        timer = null;
+      });
+    if (!res.ok) throw new Error(`history_http_${res.status}`);
+    const parsed = JSON.parse(await res.text());
+    const srcRows = Array.isArray(parsed?.rows) ? parsed.rows : [];
+    const rows = srcRows
+      .map(r => ({
+        date: normalizeTrendDate(r.date || r.dateKey || ""),
+        price: Number(r.ltp ?? r.price ?? r.close ?? 0)
+      }))
+      .filter(r => !!r.date && Number.isFinite(r.price) && r.price > 0)
+      .sort((a, b) => parseDateLocal(a.date) - parseDateLocal(b.date))
+      .slice(-Math.max(2, Math.min(30, Number(days || 7))));
+    const payload = { ok: true, rows, ticker };
+    window.__holdingTrendCache[key] = { ts: Date.now(), payload };
+    return payload;
+  } catch (err) {
+    const reason = String(err?.name || "").toLowerCase() === "aborterror" ? "fetch_timeout" : "fetch_failed";
+    return { ok: false, reason, error: String(err?.message || err), rows: [], ticker };
+  }
+}
+
+function escapeHoldingHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function formatHoldingTrendDate(dateStr) {
+  const d = parseDateLocal(dateStr);
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return String(dateStr || "");
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${dd}-${mm}-${yy}`;
+}
+
+function buildHoldingTrendSvg(points) {
+  if (!Array.isArray(points) || points.length === 0) {
+    return '<div class="text-muted tiny-label">No trend points available yet.</div>';
+  }
+  if (points.length === 1) {
+    return `<div class="tiny-label">Only one price point: ₹${Number(points[0].price || 0).toFixed(2)} on ${formatHoldingTrendDate(points[0].date)}</div>`;
+  }
+
+  const w = 340;
+  const h = 140;
+  const padX = 12;
+  const padY = 12;
+  const min = Math.min(...points.map(p => Number(p.price || 0)));
+  const max = Math.max(...points.map(p => Number(p.price || 0)));
+  const range = Math.max(1, max - min);
+  const stepX = (w - padX * 2) / Math.max(1, points.length - 1);
+
+  const coords = points.map((p, i) => {
+    const x = padX + i * stepX;
+    const y = h - padY - (((Number(p.price || 0) - min) / range) * (h - padY * 2));
+    return { x, y, price: Number(p.price || 0), date: p.date };
+  });
+  const line = coords.map(c => `${c.x.toFixed(2)},${c.y.toFixed(2)}`).join(" ");
+  const area = `${padX},${h - padY} ${line} ${w - padX},${h - padY}`;
+  const gradId = `holdingTrendFill-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+
+  return `
+    <div class="holding-trend-chart">
+      <div class="holding-trend-tooltip" id="holdingTrendTooltip" style="display:none"></div>
+      <svg class="holding-trend-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="7-day stock trend">
+        <defs>
+        <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="rgba(37,99,235,0.35)"></stop>
+          <stop offset="100%" stop-color="rgba(37,99,235,0.04)"></stop>
+        </linearGradient>
+        </defs>
+        <polyline points="${area}" fill="url(#${gradId})" stroke="none"></polyline>
+        <polyline points="${line}" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+        ${coords.map(c => `
+          <circle
+            class="holding-trend-point"
+            cx="${c.x.toFixed(2)}"
+            cy="${c.y.toFixed(2)}"
+            r="3.2"
+            fill="#2563eb"
+            data-price="${c.price.toFixed(2)}"
+            data-date="${formatHoldingTrendDate(c.date)}"></circle>
+        `).join("")}
+      </svg>
+    </div>
+  `;
+}
+
+function wireHoldingTrendTooltip() {
+  const chart = document.querySelector("#holdingTrendBody .holding-trend-chart");
+  const tip = document.getElementById("holdingTrendTooltip");
+  if (!chart || !tip) return;
+
+  const hide = () => { tip.style.display = "none"; };
+  const showFor = (point) => {
+    if (!point) return;
+    const date = String(point.getAttribute("data-date") || "");
+    const price = Number(point.getAttribute("data-price") || 0).toFixed(2);
+    tip.innerHTML = `<strong>₹${price}</strong><span>${date}</span>`;
+    tip.style.display = "grid";
+
+    const chartRect = chart.getBoundingClientRect();
+    const pointRect = point.getBoundingClientRect();
+    const left = Math.max(6, Math.min(chartRect.width - 126, (pointRect.left - chartRect.left) - 52));
+    const top = Math.max(6, (pointRect.top - chartRect.top) - 44);
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+  };
+
+  chart.querySelectorAll(".holding-trend-point").forEach(point => {
+    point.addEventListener("mouseenter", () => showFor(point));
+    point.addEventListener("mousemove", () => showFor(point));
+    point.addEventListener("click", () => showFor(point));
+    point.addEventListener("touchstart", () => showFor(point), { passive: true });
+  });
+
+  chart.addEventListener("mouseleave", hide);
+  chart.addEventListener("touchend", () => setTimeout(hide, 1200), { passive: true });
+}
+
+function ensureHoldingTrendModal() {
+  let modal = document.getElementById("holdingTrendModal");
+  if (modal) return modal;
+
+  modal = document.createElement("div");
+  modal.id = "holdingTrendModal";
+  modal.className = "holding-trend-modal";
+  modal.innerHTML = `
+    <div class="holding-trend-card" role="dialog" aria-modal="true" aria-labelledby="holdingTrendTitle">
+      <div class="holding-trend-head">
+        <div id="holdingTrendTitle" class="section-title mb-0">7-Day Price Trend</div>
+        <button type="button" id="holdingTrendCloseBtn" class="btn btn-sm btn-outline-secondary" aria-label="Close">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+      <div id="holdingTrendBody" class="holding-trend-body"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.style.display = "none";
+  });
+  const closeBtn = modal.querySelector("#holdingTrendCloseBtn");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      modal.style.display = "none";
+    });
+  }
+  return modal;
+}
+
+async function openHoldingPriceTrend(encodedStock) {
+  let decoded = String(encodedStock || "");
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch (e) {}
+  const stock = normalizeStockName(decoded);
+  if (!stock) return;
+
+  const modal = ensureHoldingTrendModal();
+  const body = document.getElementById("holdingTrendBody");
+  if (!modal || !body) return;
+
+  modal.style.display = "flex";
+  body.innerHTML = `<div class="tiny-label text-muted">Loading cloud trend...</div>`;
+  const cloud = await fetchHoldingCloudTrend(stock, 7);
+  const series = Array.isArray(cloud.rows) ? cloud.rows : [];
+  const firstPrice = Number(series[0]?.price || 0);
+  const lastPrice = Number(series[series.length - 1]?.price || 0);
+  const delta = lastPrice - firstPrice;
+  const deltaPct = firstPrice > 0 ? (delta / firstPrice) * 100 : 0;
+
+  body.innerHTML = `
+    <div class="split-row mb-2">
+      <div class="left-col"><strong>${escapeHoldingHtml(stock)}</strong></div>
+      <div class="right-col tiny-label ${delta >= 0 ? "profit" : "loss"}">
+        ${series.length > 1 ? `${delta >= 0 ? "+" : ""}₹${delta.toFixed(2)} (${deltaPct.toFixed(2)}%)` : "Trend unavailable"}
+      </div>
+    </div>
+    ${buildHoldingTrendSvg(series)}
+    <div class="tiny-label text-muted">Tap/hover points to see price tooltip.</div>
+    ${series.length ? "" : `<div class="tiny-label text-muted">Cloud trend data not available for ${escapeHoldingHtml(cloud.ticker || stock)}.</div>`}
+    ${!cloud.ok ? `<div class="tiny-label text-muted mt-1">Reason: ${escapeHoldingHtml(cloud.reason || "unknown")}</div>` : ""}
+  `;
+  wireHoldingTrendTooltip();
+}
+
 function resolveTxnBrokerage(txn, settings) {
   const safeSettings = settings || {
     brokerageBuyPct: 0,
@@ -1610,6 +1902,7 @@ function renderHoldingsVisuals(rows) {
             (new Date() - parseDateLocal(map[s].cycleFirstBuy)) / 86400000
           );
           const cyclePanelId = `holding-cycle-${String(s).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+          const stockToken = encodeURIComponent(s);
           const cycleTxns = Array.isArray(map[s].cycleTxns) ? map[s].cycleTxns : [];
           const cycleHtml = cycleTxns.length
             ? cycleTxns.map(ct => `
@@ -1628,10 +1921,20 @@ function renderHoldingsVisuals(rows) {
 
           holdingsList.innerHTML += `
             <div class="txn-card">
-              <button type="button" class="holding-name-btn" onclick="toggleHoldingCycle('${cyclePanelId}', this)" aria-expanded="false">
-                <span class="txn-name">${s}</span>
-                <i class="bi bi-chevron-down"></i>
-              </button>
+              <div class="holding-head-row">
+                <button type="button" class="holding-name-btn" onclick="toggleHoldingCycle('${cyclePanelId}', this)" aria-expanded="false">
+                  <span class="txn-name">${s}</span>
+                  <i class="bi bi-chevron-down"></i>
+                </button>
+                <button
+                  type="button"
+                  class="holding-trend-btn"
+                  onclick="openHoldingPriceTrend('${stockToken}')"
+                  title="Show last 7 days price trend"
+                  aria-label="Show last 7 days price trend">
+                  <i class="bi bi-graph-up-arrow"></i>
+                </button>
+              </div>
               <div class="txn-sub">
                 Qty ${qty} |
                 Avg ₹${(invested / qty).toFixed(2)} |
@@ -2118,6 +2421,7 @@ function loadDashboard() {
       }
 
       const homeInsightEl = document.getElementById("homeInsight");
+      const cycleMap = buildPositionHoldingsMap(txns, settings, { captureCycleTxns: true });
       const activeRows = Object.keys(positionMap)
         .map(stock => {
           const lots = positionMap[stock].lots;
@@ -2134,7 +2438,12 @@ function loadDashboard() {
           const ltp = Number(live?.ltp);
           const hasLive = Number.isFinite(ltp) && ltp > 0;
           const livePnl = hasLive ? (qty * ltp) - invested : 0;
-          return { stock, qty, invested, avg, livePnl };
+          const cycleTxns = Array.isArray(cycleMap?.[stock]?.cycleTxns) ? cycleMap[stock].cycleTxns : [];
+          const cycleBuys = cycleTxns.filter(ct => String(ct?.type || "").toUpperCase() === "BUY");
+          const lastBuyPrice = cycleBuys.length
+            ? toFiniteNumber(cycleBuys[cycleBuys.length - 1].price, avg)
+            : avg;
+          return { stock, qty, invested, avg, livePnl, ltp: hasLive ? ltp : 0, hasLive, lastBuyPrice };
         })
         .filter(Boolean)
         .sort((a, b) => b.invested - a.invested);
@@ -2143,7 +2452,9 @@ function loadDashboard() {
         totalInvested,
         liveCurrentTotal,
         liveUnrealizedTotal,
-        hasLive: liveUnrealizedCount > 0
+        hasLive: liveUnrealizedCount > 0,
+        avgLevel1Pct: toFiniteNumber(settings?.avgLevel1Pct, 0),
+        avgLevel2Pct: toFiniteNumber(settings?.avgLevel2Pct, 0)
       });
       if (homeInsightEl) {
         const top2 = activeRows.slice(0, 2);
@@ -2157,73 +2468,261 @@ function loadDashboard() {
   });
 }
 
-function getHomeUnrealizedHistoryKey() {
-  try {
-    const uid = localStorage.getItem("activeUserId") || "guest";
-    return `home_unrealized_history_v1_${uid}`;
-  } catch (e) {
-    return "home_unrealized_history_v1_guest";
+let homeUnrealizedTrendRenderToken = 0;
+async function mapWithConcurrency(items, worker, limit = 4) {
+  const list = Array.isArray(items) ? items : [];
+  const out = new Array(list.length);
+  let idx = 0;
+  const runners = Array.from({ length: Math.max(1, Math.min(limit, list.length || 1)) }, async () => {
+    while (true) {
+      const i = idx++;
+      if (i >= list.length) break;
+      try {
+        out[i] = await worker(list[i], i);
+      } catch (e) {
+        out[i] = null;
+      }
+    }
+  });
+  await Promise.all(runners);
+  return out;
+}
+
+function buildHomeUnrealizedCloudTrendSvg(points) {
+  if (!Array.isArray(points) || points.length < 2) {
+    return `<div class="text-muted">No unrealized trend yet.</div>`;
   }
+
+  const w = 340;
+  const h = 140;
+  const padX = 12;
+  const padY = 12;
+  const values = points.map(p => toFiniteNumber(p.value, 0));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(1, max - min);
+  const stepX = (w - padX * 2) / Math.max(1, points.length - 1);
+  const stroke = values[values.length - 1] >= values[0] ? "#10b981" : "#ef4444";
+  const gradId = `homeUnrealizedFill-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+
+  const coords = points.map((p, i) => {
+    const x = padX + i * stepX;
+    const y = h - padY - (((toFiniteNumber(p.value, 0) - min) / range) * (h - padY * 2));
+    return { x, y, value: toFiniteNumber(p.value, 0), date: String(p.date || "") };
+  });
+  const line = coords.map(c => `${c.x.toFixed(2)},${c.y.toFixed(2)}`).join(" ");
+  const area = `${padX},${h - padY} ${line} ${w - padX},${h - padY}`;
+  const first = coords[0];
+  const last = coords[coords.length - 1];
+  const todayChange = toFiniteNumber(points[points.length - 1]?.dayChange, 0);
+  const totalNow = toFiniteNumber(last.value, 0);
+
+  return `
+    <div class="holding-trend-chart home-unrealized-trend-chart">
+      <div class="holding-trend-tooltip home-unrealized-trend-tooltip" style="display:none"></div>
+      <svg class="holding-trend-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="7-day unrealized P/L trend">
+        <defs>
+          <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgba(37,99,235,0.35)"></stop>
+            <stop offset="100%" stop-color="rgba(37,99,235,0.04)"></stop>
+          </linearGradient>
+        </defs>
+        <polyline points="${area}" fill="url(#${gradId})" stroke="none"></polyline>
+        <polyline points="${line}" fill="none" stroke="${stroke}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+        ${coords.map((c, i) => `
+          <circle
+            class="holding-trend-point home-unrealized-point"
+            cx="${c.x.toFixed(2)}"
+            cy="${c.y.toFixed(2)}"
+            r="3.1"
+            fill="${stroke}"
+            data-value="${c.value.toFixed(2)}"
+            data-day-change="${toFiniteNumber(points[i]?.dayChange, 0).toFixed(2)}"
+            data-date="${formatHoldingTrendDate(c.date)}"></circle>
+        `).join("")}
+      </svg>
+      <div class="split-row mt-1">
+        <div class="left-col tiny-label">${formatHoldingTrendDate(first.date)} to ${formatHoldingTrendDate(last.date)}</div>
+        <div class="right-col tiny-label ${todayChange >= 0 ? "profit" : "loss"}">Today ${todayChange >= 0 ? "+" : ""}₹${todayChange.toFixed(2)}</div>
+      </div>
+      <div class="split-row">
+        <div class="left-col tiny-label">Cumulative</div>
+        <div class="right-col tiny-label ${totalNow >= 0 ? "profit" : "loss"}">${totalNow >= 0 ? "+" : ""}₹${totalNow.toFixed(2)}</div>
+      </div>
+    </div>
+  `;
 }
 
-function readHomeUnrealizedHistory() {
-  try {
-    const raw = localStorage.getItem(getHomeUnrealizedHistoryKey());
-    const rows = raw ? JSON.parse(raw) : [];
-    return Array.isArray(rows) ? rows : [];
-  } catch (e) {
-    return [];
+function wireHomeUnrealizedTrendTooltip(container) {
+  if (!container) return;
+  const chart = container.querySelector(".home-unrealized-trend-chart");
+  const tip = container.querySelector(".home-unrealized-trend-tooltip");
+  if (!chart || !tip) return;
+
+  const hide = () => { tip.style.display = "none"; };
+  const showFor = (point) => {
+    const date = String(point.getAttribute("data-date") || "");
+    const value = toFiniteNumber(point.getAttribute("data-value"), 0);
+    const dayChange = toFiniteNumber(point.getAttribute("data-day-change"), 0);
+    tip.innerHTML = `
+      <strong class="${dayChange >= 0 ? "profit" : "loss"}">Day ${dayChange >= 0 ? "+" : ""}₹${dayChange.toFixed(2)}</strong>
+      <span class="${value >= 0 ? "profit" : "loss"}">Total ${value >= 0 ? "+" : ""}₹${value.toFixed(2)}</span>
+      <span>${date}</span>
+    `;
+    tip.style.display = "grid";
+    const chartRect = chart.getBoundingClientRect();
+    const pointRect = point.getBoundingClientRect();
+    const left = Math.max(6, Math.min(chartRect.width - 126, (pointRect.left - chartRect.left) - 52));
+    const top = Math.max(6, (pointRect.top - chartRect.top) - 44);
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+  };
+
+  chart.querySelectorAll(".home-unrealized-point").forEach(point => {
+    point.addEventListener("mouseenter", () => showFor(point));
+    point.addEventListener("mousemove", () => showFor(point));
+    point.addEventListener("click", () => showFor(point));
+    point.addEventListener("touchstart", () => showFor(point), { passive: true });
+  });
+  chart.addEventListener("mouseleave", hide);
+  chart.addEventListener("touchend", () => setTimeout(hide, 1200), { passive: true });
+}
+
+function buildPortfolioUnrealizedFromCloud(activeRows, historyRowsByStock, days = 7) {
+  const allDates = Array.from(new Set(
+    (historyRowsByStock || [])
+      .flatMap(item => (Array.isArray(item.rows) ? item.rows : []).map(r => String(r.date || "").slice(0, 10)))
+      .filter(Boolean)
+  )).sort((a, b) => parseDateLocal(a) - parseDateLocal(b));
+  const dates = allDates.slice(-Math.max(2, Math.min(30, Number(days || 7))));
+  if (!dates.length) return [];
+
+  const points = dates.map(date => {
+    let total = 0;
+    (historyRowsByStock || []).forEach(item => {
+      const row = (activeRows || []).find(r => normalizeStockName(r.stock) === normalizeStockName(item.stock));
+      if (!row) return;
+      const qty = toFiniteNumber(row.qty, 0);
+      const invested = toFiniteNumber(row.invested, 0);
+      if (qty <= 0) return;
+      let price = null;
+      (item.rows || []).forEach(p => {
+        const d = String(p.date || "").slice(0, 10);
+        if (parseDateLocal(d) <= parseDateLocal(date)) price = toFiniteNumber(p.price, 0);
+      });
+      if (!Number.isFinite(price) || price <= 0) return;
+      total += (qty * price) - invested;
+    });
+    return { date, value: total };
+  }).filter(Boolean);
+
+  return points.map((p, i) => {
+    const prev = i > 0 ? toFiniteNumber(points[i - 1].value, 0) : toFiniteNumber(p.value, 0);
+    return { ...p, dayChange: toFiniteNumber(p.value, 0) - prev };
+  });
+}
+
+async function renderHomeUnrealizedTrendFromCloud(activeRows, container) {
+  if (!container) return;
+  const rows = (activeRows || []).filter(r => toFiniteNumber(r.qty, 0) > 0 && toFiniteNumber(r.invested, 0) > 0);
+  if (!rows.length) {
+    container.innerHTML = `<div class="text-muted">No active holdings for unrealized trend.</div>`;
+    return;
   }
-}
 
-function writeHomeUnrealizedHistory(rows) {
-  try {
-    localStorage.setItem(getHomeUnrealizedHistoryKey(), JSON.stringify(rows || []));
-  } catch (e) {}
-}
+  const token = ++homeUnrealizedTrendRenderToken;
+  container.innerHTML = `<div class="tiny-label text-muted">Loading cloud trend...</div>`;
+  const historyRowsByStock = await mapWithConcurrency(rows, async (r) => {
+    let cloud = await fetchHoldingCloudTrend(r.stock, 7, { fast: true, timeoutMs: 8000 });
+    // Fast mode may miss symbols not yet present in LivePriceHistory; retry full mode per stock.
+    if (!cloud?.ok || !Array.isArray(cloud.rows) || cloud.rows.length < 2) {
+      cloud = await fetchHoldingCloudTrend(r.stock, 7, { fast: false, timeoutMs: 10000 });
+    }
+    return {
+      stock: r.stock,
+      ok: !!cloud?.ok,
+      ticker: String(cloud?.ticker || ""),
+      rows: Array.isArray(cloud?.rows) ? cloud.rows : []
+    };
+  }, 2);
+  if (token !== homeUnrealizedTrendRenderToken) return;
 
-function upsertHomeUnrealizedSnapshot(value) {
-  const today = new Date().toISOString().slice(0, 10);
-  const rows = readHomeUnrealizedHistory().filter(r => r && typeof r.date === "string");
-  const next = rows.filter(r => r.date !== today);
-  next.push({ date: today, value: toFiniteNumber(value, 0) });
-  next.sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  writeHomeUnrealizedHistory(next.slice(-40));
-  return next.slice(-7);
+  // Second-pass retry for failed stocks (sequential, longer timeout) to match holdings-page reliability.
+  for (let i = 0; i < historyRowsByStock.length; i++) {
+    const h = historyRowsByStock[i];
+    if (h && h.ok && Array.isArray(h.rows) && h.rows.length > 0) continue;
+    const stock = h?.stock || rows[i]?.stock;
+    if (!stock) continue;
+    const retry = await fetchHoldingCloudTrend(stock, 7, { fast: false, timeoutMs: 18000 });
+    historyRowsByStock[i] = {
+      stock,
+      ok: !!retry?.ok,
+      ticker: String(retry?.ticker || ""),
+      rows: Array.isArray(retry?.rows) ? retry.rows : []
+    };
+    if (token !== homeUnrealizedTrendRenderToken) return;
+  }
+
+  const missing = historyRowsByStock.filter(h => !h || !h.ok || !h.rows.length).map(h => h?.stock).filter(Boolean);
+  if (missing.length) {
+    container.innerHTML = `<div class="text-muted">Trend unavailable for: ${missing.join(", ")}</div>`;
+    return;
+  }
+
+  const points = buildPortfolioUnrealizedFromCloud(rows, historyRowsByStock, 7);
+  container.innerHTML = buildHomeUnrealizedCloudTrendSvg(points);
+  wireHomeUnrealizedTrendTooltip(container);
 }
 
 function renderHomeDashboardVisuals(activeRows, stats) {
-  const unrealizedTrendEl = document.getElementById("homeUnrealizedTrend");
+  const zoneStocksEl = document.getElementById("homeZoneStocks");
   const capitalDonutEl = document.getElementById("homeCapitalDonut");
   const capitalLegendEl = document.getElementById("homeCapitalLegend");
   const holdingsBarsEl = document.getElementById("homeTopHoldingsBars");
-  if (!unrealizedTrendEl && !capitalDonutEl && !capitalLegendEl && !holdingsBarsEl) return;
+  if (!zoneStocksEl && !capitalDonutEl && !capitalLegendEl && !holdingsBarsEl) return;
 
   const rows = (activeRows || []).slice();
   const totalInvested = toFiniteNumber(stats?.totalInvested, 0);
   const liveCurrentTotal = toFiniteNumber(stats?.liveCurrentTotal, 0);
   const liveUnrealizedTotal = toFiniteNumber(stats?.liveUnrealizedTotal, 0);
   const hasLive = !!stats?.hasLive;
+  const l1Pct = Math.max(0, toFiniteNumber(stats?.avgLevel1Pct, 0));
+  const l2Pct = Math.max(0, toFiniteNumber(stats?.avgLevel2Pct, 0));
 
-  if (unrealizedTrendEl) {
-    const trendPoints = hasLive ? upsertHomeUnrealizedSnapshot(liveUnrealizedTotal) : readHomeUnrealizedHistory().slice(-7);
-    if (!trendPoints.length) {
-      unrealizedTrendEl.innerHTML = `<div class="text-muted">No unrealized trend yet.</div>`;
+  if (zoneStocksEl) {
+    const zoneRows = rows
+      .filter(r => !!r.hasLive && toFiniteNumber(r.lastBuyPrice, 0) > 0)
+      .map(r => {
+        const lastBuy = toFiniteNumber(r.lastBuyPrice, 0);
+        const ltp = toFiniteNumber(r.ltp, 0);
+        const invested = toFiniteNumber(r.invested, 0);
+        const qty = toFiniteNumber(r.qty, 0);
+        const allocPct = totalInvested > 0 ? (invested / totalInvested) * 100 : 0;
+        if (lastBuy <= 0 || ltp <= 0) return null;
+        const l1 = lastBuy * (1 - (l1Pct / 100));
+        const l2 = lastBuy * (1 - (l2Pct / 100));
+        if (ltp <= l2) return { stock: r.stock, zone: "L2", ltp, qty, invested, allocPct, l1, l2, lastBuy };
+        if (ltp <= l1) return { stock: r.stock, zone: "L1", ltp, qty, invested, allocPct, l1, l2, lastBuy };
+        return null;
+      })
+      .filter(Boolean);
+
+    if (!zoneRows.length) {
+      zoneStocksEl.innerHTML = `<div class="text-muted">No stocks currently in L1/L2 zone.</div>`;
     } else {
-      const maxAbs = Math.max(1, ...trendPoints.map(p => Math.abs(toFiniteNumber(p.value, 0))));
-      unrealizedTrendEl.innerHTML = trendPoints.map(p => {
-        const v = toFiniteNumber(p.value, 0);
-        const w = (Math.abs(v) / maxAbs) * 100;
-        const cls = v >= 0 ? "profit" : "loss";
-        const label = String(p.date || "").slice(5);
-        return `
-          <div class="adv-bar-row">
-            <div class="adv-bar-label">${label}</div>
-            <div class="adv-bar-track"><div class="adv-bar ${cls}" style="width:${w}%"></div></div>
-            <div class="adv-bar-value ${cls}">₹${v.toFixed(2)}</div>
+      zoneStocksEl.innerHTML = zoneRows
+        .sort((a, b) => String(a.stock).localeCompare(String(b.stock)))
+        .map(z => `
+          <div class="txn-card">
+            <div class="split-row">
+              <div class="left-col tiny-label"><strong>${z.stock}</strong></div>
+              <div class="right-col tiny-label ${z.zone === "L2" ? "profit" : "loss"}">${z.zone}</div>
+            </div>
+            <div class="tiny-label">Qty ${z.qty.toFixed(2)} | Invested ₹${z.invested.toFixed(2)} | Alloc ${z.allocPct.toFixed(2)}%</div>
+            <div class="tiny-label">Last Buy ₹${z.lastBuy.toFixed(2)} | L1 ₹${z.l1.toFixed(2)} | L2 ₹${z.l2.toFixed(2)} | LTP ₹${z.ltp.toFixed(2)}</div>
           </div>
-        `;
-      }).join("");
+        `)
+        .join("");
     }
   }
 

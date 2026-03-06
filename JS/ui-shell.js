@@ -190,14 +190,17 @@
       if (closeBtn) closeBtn.addEventListener("click", function () { modal.style.display = "none"; });
     }
     var body = document.getElementById("appShellCloudBody");
+    var s = status || {};
+    var statusError = String(s.error || "").trim();
     if (body) {
       body.innerHTML =
         "<div><strong>User:</strong> " + escapeHtml(userId) + "</div>" +
-        "<div><strong>Total snapshots:</strong> " + escapeHtml(status.totalSnapshots) + "</div>" +
-        "<div><strong>Latest event:</strong> " + escapeHtml(status.latestEvent) + "</div>" +
-        "<div><strong>Latest export:</strong> " + escapeHtml(status.latestExport) + "</div>" +
-        "<div><strong>Latest tx count:</strong> " + escapeHtml(status.latestTxCount) + "</div>" +
-        "<div><strong>Recovery hash:</strong> " + (status.hasRecoveryHash ? "Present" : "<span class='text-danger'>Missing</span>") + "</div>";
+        "<div><strong>Total snapshots:</strong> " + escapeHtml(s.totalSnapshots || "-") + "</div>" +
+        "<div><strong>Latest event:</strong> " + escapeHtml(s.latestEvent || "-") + "</div>" +
+        "<div><strong>Latest export:</strong> " + escapeHtml(s.latestExport || "-") + "</div>" +
+        "<div><strong>Latest tx count:</strong> " + escapeHtml(s.latestTxCount || "-") + "</div>" +
+        "<div><strong>Recovery hash:</strong> " + (s.hasRecoveryHash ? "Present" : "<span class='text-danger'>Missing</span>") + "</div>" +
+        (statusError ? ("<div class='text-danger mt-2'>" + escapeHtml(statusError) + "</div>") : "");
     }
     modal.style.display = "block";
   }
@@ -248,7 +251,10 @@
 
     drawer.innerHTML =
       '<div class="app-shell-drawer-head">' +
-        '<div class="app-shell-brand">Finance App</div>' +
+        '<div class="app-shell-brand-row">' +
+          '<div class="app-shell-brand">Finance App</div>' +
+          '<button type="button" class="app-shell-close-btn" id="appShellDrawerClose" aria-label="Close menu"><i class="bi bi-x-lg"></i></button>' +
+        '</div>' +
         '<div class="app-shell-user-row">' +
           '<div class="app-shell-user">' + (activeUser || "Guest") + "</div>" +
           '<div class="app-shell-profile-wrap">' +
@@ -287,6 +293,8 @@
         else openDrawer();
       });
     }
+    var drawerCloseBtn = document.getElementById("appShellDrawerClose");
+    if (drawerCloseBtn) drawerCloseBtn.addEventListener("click", closeDrawer);
     overlay.addEventListener("click", closeDrawer);
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") closeDrawer();
@@ -307,7 +315,22 @@
     }
 
     var logoutBtn = document.getElementById("appShellLogoutBtn");
-    if (logoutBtn) logoutBtn.addEventListener("click", doLogout);
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", async function () {
+        try {
+          if (typeof window.appShowActionProgress === "function") window.appShowActionProgress("Signing out...");
+          else if (typeof window.appShowLoading === "function") window.appShowLoading("Signing out...");
+          await doLogout();
+        } finally {
+          if (typeof window.appHideActionProgress === "function") window.appHideActionProgress();
+          else if (typeof window.appHideLoading === "function") window.appHideLoading();
+        }
+      });
+    }
+
+    drawer.querySelectorAll("a[href]").forEach(function (lnk) {
+      lnk.addEventListener("click", closeDrawer);
+    });
 
     var profileBtn = document.getElementById("appShellProfileBtn");
     var profileMenu = document.getElementById("appShellProfileMenu");
@@ -327,9 +350,17 @@
     if (cloudBtn) {
       cloudBtn.addEventListener("click", async function () {
         closeProfileMenu();
+        closeDrawer();
         var uid = String(localStorage.getItem("activeUserId") || "").trim();
         if (!uid) return;
         cloudBtn.disabled = true;
+        openCloudStatusModal(uid, {
+          totalSnapshots: "...",
+          latestEvent: "Loading",
+          latestExport: "...",
+          latestTxCount: "...",
+          hasRecoveryHash: false
+        });
         if (typeof window.appShowActionProgress === "function") {
           window.appShowActionProgress("Checking cloud status...");
         } else if (typeof window.appShowLoading === "function") {
@@ -339,6 +370,14 @@
           var status = await fetchCloudStatusForUser(uid);
           openCloudStatusModal(uid, status);
         } catch (e) {
+          openCloudStatusModal(uid, {
+            totalSnapshots: "-",
+            latestEvent: "Unavailable",
+            latestExport: "-",
+            latestTxCount: "-",
+            hasRecoveryHash: false,
+            error: "Failed to load cloud status. Please try again."
+          });
           if (typeof window.showToast === "function") window.showToast("Failed to load cloud status", "error", 3000);
         } finally {
           if (typeof window.appHideActionProgress === "function") window.appHideActionProgress();

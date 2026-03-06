@@ -636,7 +636,8 @@
 }
 
 .page-holdings #holdingsList .holding-name-btn {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   border: 0;
   background: transparent;
   padding: 0;
@@ -651,6 +652,35 @@
 .page-holdings #holdingsList .holding-name-btn i {
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.page-holdings #holdingsList .holding-head-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-holdings #holdingsList .holding-trend-btn {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border: 1px solid color-mix(in oklab, var(--border) 72%, var(--accent));
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--surface-2) 88%, var(--accent));
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.page-holdings #holdingsList .holding-trend-btn i {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.page-holdings #holdingsList .holding-trend-btn:hover {
+  background: color-mix(in oklab, var(--surface-2) 68%, var(--accent));
 }
 
 .page-holdings #holdingsList .holding-cycle-wrap {

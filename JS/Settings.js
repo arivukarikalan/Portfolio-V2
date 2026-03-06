@@ -688,6 +688,7 @@ function addCloudHeaderButton() {
 
   btn.addEventListener("click", async () => {
     btn.disabled = true;
+    appShowActionProgress("Checking cloud status...");
     upsertCloudStatusModal('<div class="text-muted">Loading cloud details...</div>');
     try {
       const { userId, rows } = await fetchCloudRowsForActiveUser();
@@ -729,6 +730,7 @@ function addCloudHeaderButton() {
     } catch (err) {
       upsertCloudStatusModal(`<div class="text-danger">Failed to load cloud status: ${escapeHtml(err?.message || err)}</div>`);
     } finally {
+      appHideActionProgress();
       btn.disabled = false;
     }
   });
