@@ -588,6 +588,117 @@ body.app-shell-legacy-hide .toast-host {
   }
 }
 
+/* Cross-page overlap safety */
+.split-row {
+  min-width: 0;
+}
+
+.split-row .left-col,
+.split-row .right-col,
+.txn-top > div {
+  min-width: 0;
+}
+
+.txn-sub,
+.tiny-label {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .split-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .split-row .right-col {
+    text-align: left !important;
+    width: 100%;
+  }
+
+  .txn-top {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .txn-top .right-col {
+    width: 100%;
+    text-align: left;
+  }
+}
+
+/* Expenses page clarity + filter wrapping */
+.page-expenses .form-label {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.page-expenses .exp-filter-tools {
+  flex-wrap: wrap;
+}
+
+.page-expenses .exp-filter-tools > * {
+  min-width: 130px;
+}
+
+@media (max-width: 760px) {
+  .page-expenses .exp-filter-tools {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px !important;
+  }
+
+  .page-expenses .exp-filter-tools > * {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .page-expenses .section-title.mb-0 {
+    margin-bottom: 4px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .page-expenses .exp-filter-tools {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Expenses card layout: keep amount/actions anchored right */
+.page-expenses #expenseList .txn-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+.page-expenses #expenseList .txn-top > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-expenses #expenseList .txn-top .right-col {
+  width: auto !important;
+  min-width: 118px;
+  text-align: right !important;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.page-expenses #expenseList .txn-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 520px) {
+  .page-expenses #expenseList .txn-top .right-col {
+    min-width: 104px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
