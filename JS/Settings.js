@@ -8,6 +8,15 @@
 let LAST_TOAST_SIG = "";
 let LAST_TOAST_AT = 0;
 
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function showToast(message, type = "success", durationMs) {
   const text = (message || "").trim();
   if (!text) return;
@@ -43,10 +52,12 @@ function showToast(message, type = "success", durationMs) {
   toast.innerHTML = `
     <div class="app-toast-inner">
       <span class="app-toast-icon"><i class="bi ${iconClass}"></i></span>
-      <span class="app-toast-text">${text}</span>
+      <span class="app-toast-text"></span>
     </div>
     <span class="app-toast-progress"></span>
   `;
+  const toastText = toast.querySelector(".app-toast-text");
+  if (toastText) toastText.textContent = text;
   host.appendChild(toast);
 
   // Keep stack compact on mobile.
@@ -685,7 +696,7 @@ function addCloudHeaderButton() {
         return;
       }
       if (!rows.length) {
-        upsertCloudStatusModal(`<div><div><strong>User:</strong> ${userId}</div><div class="text-danger mt-2">No cloud snapshots found for this user.</div></div>`);
+        upsertCloudStatusModal(`<div><div><strong>User:</strong> ${escapeHtml(userId)}</div><div class="text-danger mt-2">No cloud snapshots found for this user.</div></div>`);
         return;
       }
 
@@ -701,22 +712,22 @@ function addCloudHeaderButton() {
       const report = getAutoSyncReport();
       const autoSyncHtml = report
         ? `<hr><div><strong>Auto Sync (2d):</strong> ${report.ok ? "OK" : '<span class="text-danger">Failed</span>'}</div>
-           <div><strong>Last run:</strong> ${formatIso(report.finishedAt || report.startedAt)}</div>
-           <div><strong>Status:</strong> ${report.skipped ? `Skipped (${report.reason || "n/a"})` : "Uploaded"}</div>`
+           <div><strong>Last run:</strong> ${escapeHtml(formatIso(report.finishedAt || report.startedAt))}</div>
+           <div><strong>Status:</strong> ${report.skipped ? `Skipped (${escapeHtml(report.reason || "n/a")})` : "Uploaded"}</div>`
         : `<hr><div><strong>Auto Sync (2d):</strong> No report yet</div>`;
 
       const html = `
-        <div><strong>User:</strong> ${userId}</div>
+        <div><strong>User:</strong> ${escapeHtml(userId)}</div>
         <div><strong>Total snapshots:</strong> ${rows.length}</div>
-        <div><strong>Latest event:</strong> ${latest.eventType || "-"}</div>
-        <div><strong>Latest export:</strong> ${formatIso(latest.exportedAt)}</div>
-        <div><strong>Latest tx count:</strong> ${txCount}</div>
+        <div><strong>Latest event:</strong> ${escapeHtml(latest.eventType || "-")}</div>
+        <div><strong>Latest export:</strong> ${escapeHtml(formatIso(latest.exportedAt))}</div>
+        <div><strong>Latest tx count:</strong> ${escapeHtml(txCount)}</div>
         <div><strong>Recovery hash:</strong> ${latestHash ? "Present" : '<span class="text-danger">Missing</span>'}</div>
         ${autoSyncHtml}
       `;
       upsertCloudStatusModal(html);
     } catch (err) {
-      upsertCloudStatusModal(`<div class="text-danger">Failed to load cloud status: ${err.message || err}</div>`);
+      upsertCloudStatusModal(`<div class="text-danger">Failed to load cloud status: ${escapeHtml(err?.message || err)}</div>`);
     } finally {
       btn.disabled = false;
     }

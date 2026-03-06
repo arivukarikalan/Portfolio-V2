@@ -69,5 +69,25 @@
 <script src="JS/App.js"></script>
   <script src="JS/Settings.js"></script>
   <script src="JS/Report.js"></script>
+  <script>
+    (function () {
+      const uid = localStorage.getItem("activeUserId");
+      if (!uid) {
+        window.location.href = "./client/profile.html";
+        return;
+      }
+
+      const boot = async () => {
+        if (typeof window.startApp === "function") {
+          await window.startApp();
+        }
+        if (typeof loadReportPage === "function") {
+          loadReportPage();
+        }
+      };
+
+      boot().catch(err => console.error("Report bootstrap failed", err));
+    })();
+  </script>
   </body>
 </html>

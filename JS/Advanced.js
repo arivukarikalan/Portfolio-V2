@@ -12,6 +12,32 @@
     return n(v).toFixed(2) + "%";
   }
 
+  function moneyShort(v) {
+    const x = n(v);
+    if (Math.abs(x) >= 10000000) return "\u20b9" + (x / 10000000).toFixed(2) + "Cr";
+    if (Math.abs(x) >= 100000) return "\u20b9" + (x / 100000).toFixed(2) + "L";
+    if (Math.abs(x) >= 1000) return "\u20b9" + (x / 1000).toFixed(1) + "K";
+    return "\u20b9" + x.toFixed(0);
+  }
+
+  function escapeHtml(v) {
+    return String(v == null ? "" : v)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function findAdvTapTarget(event, stopNode) {
+    let cur = event.target;
+    while (cur && cur !== stopNode) {
+      if (cur.dataset && cur.dataset.advMonth) return cur;
+      cur = cur.parentNode;
+    }
+    return null;
+  }
+
   function dLocal(s) {
     const parts = String(s || "").split("-");
     if (parts.length === 3) {
@@ -58,10 +84,14 @@
     const holdings = {};
     const monthlyRealized = {};
     const monthlyCapital = {};
+    const monthlyContribution = {};
+    const monthlyRealizedDetails = {};
+    const monthlyContributionDetails = {};
     const realizedTrades = [];
     const stockAgg = {};
     const cycleAgg = {};
     const buyEvents = [];
+    let internalCashPool = 0;
 
     sorted.forEach((t) => {
       const stock = normStock(t.stock);
@@ -76,8 +106,41 @@
       const brkg = n(t.brokerage);
       const mKey = String(t.date || "").slice(0, 7);
       if (mKey) {
-        if (type === "BUY") monthlyCapital[mKey] = n(monthlyCapital[mKey]) + (qty * price + brkg);
-        if (type === "SELL") monthlyCapital[mKey] = n(monthlyCapital[mKey]) - (qty * price - brkg);
+        if (type === "BUY") {
+          const buyValue = qty * price + brkg;
+          monthlyCapital[mKey] = n(monthlyCapital[mKey]) + buyValue;
+
+          // New contribution only = amount that cannot be funded by historical sell proceeds.
+          const fundedByPool = Math.min(internalCashPool, buyValue);
+          const freshContribution = Math.max(0, buyValue - fundedByPool);
+          monthlyContribution[mKey] = n(monthlyContribution[mKey]) + freshContribution;
+          internalCashPool = Math.max(0, internalCashPool - fundedByPool);
+          monthlyContributionDetails[mKey] = monthlyContributionDetails[mKey] || [];
+          monthlyContributionDetails[mKey].push({
+            date: t.date,
+            stock,
+            type: "BUY",
+            qty,
+            price,
+            buyValue,
+            fundedByPool,
+            freshContribution
+          });
+        }
+        if (type === "SELL") {
+          const sellNet = qty * price - brkg;
+          monthlyCapital[mKey] = n(monthlyCapital[mKey]) - sellNet;
+          internalCashPool += Math.max(0, sellNet);
+          monthlyContributionDetails[mKey] = monthlyContributionDetails[mKey] || [];
+          monthlyContributionDetails[mKey].push({
+            date: t.date,
+            stock,
+            type: "SELL",
+            qty,
+            price,
+            sellNet
+          });
+        }
       }
 
       if (type === "BUY") {
@@ -116,6 +179,20 @@
       const returnPct = invested > 0 ? (net / invested) * 100 : 0;
       realizedTrades.push({ stock, date: t.date, qty, price, net, invested, holdDays, returnPct });
       monthlyRealized[mKey] = n(monthlyRealized[mKey]) + net;
+      if (mKey) {
+        monthlyRealizedDetails[mKey] = monthlyRealizedDetails[mKey] || [];
+        monthlyRealizedDetails[mKey].push({
+          date: t.date,
+          stock,
+          type: "SELL",
+          qty,
+          price,
+          sellValue,
+          buyCost: buyCost + buyBrkg,
+          brokerage: brkg,
+          net
+        });
+      }
       stockAgg[stock].net += net;
       stockAgg[stock].holdDays += holdDays;
       stockAgg[stock].invested += invested;
@@ -138,10 +215,21 @@
       }
     });
 
-    return { holdings, monthlyRealized, monthlyCapital, realizedTrades, stockAgg, cycleAgg, buyEvents };
+    return {
+      holdings,
+      monthlyRealized,
+      monthlyCapital,
+      monthlyContribution,
+      monthlyRealizedDetails,
+      monthlyContributionDetails,
+      realizedTrades,
+      stockAgg,
+      cycleAgg,
+      buyEvents
+    };
   }
 
-  function renderBars(el, map, positiveClass, negativeClass) {
+  function renderBars(el, map, positiveClass, negativeClass, opts = {}) {
     if (!el) return;
     const keys = Object.keys(map || {}).sort();
     if (!keys.length) {
@@ -154,8 +242,202 @@
       const v = n(map[k]);
       const w = (Math.abs(v) / maxAbs) * 100;
       const cls = v >= 0 ? positiveClass : negativeClass;
-      return `<div class="adv-bar-row"><div class="adv-bar-label">${k}</div><div class="adv-bar-track"><div class="adv-bar ${cls}" style="width:${w}%"></div></div><div class="adv-bar-value ${cls}">${money(v)}</div></div>`;
+      const valueHtml = opts.onMonthTap
+        ? `<button type="button" class="adv-amount-btn adv-bar-value ${cls}" data-adv-kind="${opts.kind || ""}" data-adv-month="${k}" title="View transactions">${money(v)}</button>`
+        : `<div class="adv-bar-value ${cls}">${money(v)}</div>`;
+      return `<div class="adv-bar-row"><div class="adv-bar-label">${k}</div><div class="adv-bar-track"><div class="adv-bar ${cls}" style="width:${w}%"></div></div>${valueHtml}</div>`;
     }).join("");
+
+    if (opts.onMonthTap && el.dataset.tapWired !== "1") {
+      el.dataset.tapWired = "1";
+      el.addEventListener("click", (ev) => {
+        const target = findAdvTapTarget(ev, el);
+        if (!target) return;
+        opts.onMonthTap(target.dataset.advKind || opts.kind || "", target.dataset.advMonth || "");
+      });
+    }
+  }
+
+  function renderMonthlyContributionTrend(el, map, opts = {}) {
+    if (!el) return;
+    const keys = Object.keys(map || {}).sort();
+    if (!keys.length) {
+      el.innerHTML = '<div class="text-muted">No contribution data</div>';
+      return;
+    }
+
+    const labels = keys.slice(-12);
+    const values = labels.map((k) => Math.max(0, n(map[k])));
+    const maxV = Math.max(1, ...values);
+    const minV = Math.min(...values);
+    const range = Math.max(1, maxV - minV);
+
+    const width = 640;
+    const height = 220;
+    const padL = 14;
+    const padR = 14;
+    const padT = 12;
+    const padB = 34;
+    const plotW = width - padL - padR;
+    const plotH = height - padT - padB;
+    const stepX = labels.length > 1 ? plotW / (labels.length - 1) : 0;
+
+    const points = values.map((v, i) => {
+      const x = padL + i * stepX;
+      const y = padT + (1 - ((v - minV) / range)) * plotH;
+      return { x, y, v, label: labels[i] };
+    });
+
+    const path = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(" ");
+    const areaPath = `${path} L${(padL + plotW).toFixed(2)} ${(padT + plotH).toFixed(2)} L${padL.toFixed(2)} ${(padT + plotH).toFixed(2)} Z`;
+    const xLabels = points
+      .map((p, i) => (i % Math.max(1, Math.floor(points.length / 6)) === 0 || i === points.length - 1)
+        ? `<text x="${p.x.toFixed(2)}" y="${height - 10}" text-anchor="middle" class="adv-line-axis">${p.label.slice(2)}</text>`
+        : "")
+      .join("");
+    const pointLabels = points
+      .map((p, i) => {
+        const y = Math.max(10, p.y - 10);
+        const show = points.length <= 8 || i % 2 === 0 || i === points.length - 1;
+        if (!show) return "";
+        return `<text x="${p.x.toFixed(2)}" y="${y.toFixed(2)}" text-anchor="middle" class="adv-line-value ${opts.onMonthTap ? "clickable" : ""}" data-adv-kind="${opts.kind || ""}" data-adv-month="${p.label}" title="View transactions">${moneyShort(p.v)}</text>`;
+      })
+      .join("");
+    const dots = points.map((p) => `<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="3.2" class="adv-line-dot"></circle>`).join("");
+    const current = points[points.length - 1];
+    const monthValueRows = labels.map((m, i) => {
+      const valueHtml = opts.onMonthTap
+        ? `<button type="button" class="adv-amount-btn tiny-label" data-adv-kind="${opts.kind || ""}" data-adv-month="${m}" title="View transactions"><strong>${money(values[i])}</strong></button>`
+        : `<span class="tiny-label"><strong>${money(values[i])}</strong></span>`;
+      return `<div class="split-row"><div class="left-col tiny-label">${m}</div><div class="right-col">${valueHtml}</div></div>`;
+    }).join("");
+
+    el.innerHTML = `
+      <div class="adv-line-wrap">
+        <div class="adv-line-main">
+          <svg viewBox="0 0 ${width} ${height}" class="adv-line-svg" role="img" aria-label="Monthly contribution trend chart">
+            <defs>
+              <linearGradient id="advContributionFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="rgba(15,98,254,0.28)"></stop>
+                <stop offset="100%" stop-color="rgba(15,98,254,0.02)"></stop>
+              </linearGradient>
+            </defs>
+            <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" class="adv-line-grid"></line>
+            <path d="${areaPath}" fill="url(#advContributionFill)"></path>
+            <path d="${path}" class="adv-line-path"></path>
+            ${pointLabels}
+            ${dots}
+            ${xLabels}
+          </svg>
+          <div class="split-row mt-2 adv-line-summary">
+            <div class="tiny-label">Last ${labels.length} months new-money contribution</div>
+            <div class="tiny-label"><strong>${current.label}</strong>: ${money(current.v)}</div>
+          </div>
+        </div>
+        <div class="stack-gap adv-line-side">${monthValueRows}</div>
+      </div>
+    `;
+
+    if (opts.onMonthTap && el.dataset.tapWired !== "1") {
+      el.dataset.tapWired = "1";
+      el.addEventListener("click", (ev) => {
+        const target = findAdvTapTarget(ev, el);
+        if (!target) return;
+        opts.onMonthTap(target.dataset.advKind || opts.kind || "", target.dataset.advMonth || "");
+      });
+    }
+  }
+
+  function openMonthlyTxnModal(kind, month, model) {
+    if (!month || !model) return;
+    let modal = document.getElementById("advTxnModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "advTxnModal";
+      modal.className = "app-dialog-backdrop";
+      modal.innerHTML = `
+        <div class="app-dialog-card adv-txn-modal-card" role="dialog" aria-modal="true">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="app-dialog-title mb-0" id="advTxnModalTitle">Month Details</div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="advTxnModalClose">Close</button>
+          </div>
+          <div id="advTxnModalBody"></div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) modal.style.display = "none";
+      });
+      const closeBtn = document.getElementById("advTxnModalClose");
+      if (closeBtn) closeBtn.addEventListener("click", () => { modal.style.display = "none"; });
+    }
+
+    const titleEl = document.getElementById("advTxnModalTitle");
+    const bodyEl = document.getElementById("advTxnModalBody");
+    if (!titleEl || !bodyEl) return;
+
+    if (kind === "realized") {
+      const rows = (model.monthlyRealizedDetails?.[month] || []).slice().sort((a, b) => dLocal(a.date) - dLocal(b.date));
+      const total = n(model.monthlyRealized?.[month]);
+      titleEl.textContent = `Monthly Realized P/L - ${month}`;
+      if (!rows.length) {
+        bodyEl.innerHTML = '<div class="text-muted">No realized transactions for this month.</div>';
+      } else {
+        bodyEl.innerHTML = `
+          <div class="tiny-label mb-2">Total: <strong class="${total >= 0 ? "profit" : "loss"}">${money(total)}</strong></div>
+          <div class="stack-gap adv-txn-list">
+            ${rows.map(r => `
+              <div class="txn-card">
+                <div class="split-row">
+                  <div class="left-col"><strong>${escapeHtml(r.stock)}</strong> <span class="tiny-label">(${escapeHtml(r.date)})</span></div>
+                  <div class="right-col ${n(r.net) >= 0 ? "profit" : "loss"}"><strong>${money(r.net)}</strong></div>
+                </div>
+                <div class="tiny-label mt-1">SELL ${n(r.qty)} @ ${money(r.price)} | Sell Value: ${money(r.sellValue)} | Cost Basis: ${money(r.buyCost)} | Brokerage: ${money(r.brokerage)}</div>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }
+    } else if (kind === "contribution") {
+      const rows = (model.monthlyContributionDetails?.[month] || []).slice().sort((a, b) => dLocal(a.date) - dLocal(b.date));
+      const total = n(model.monthlyContribution?.[month]);
+      titleEl.textContent = `Monthly New-Money Contribution - ${month}`;
+      if (!rows.length) {
+        bodyEl.innerHTML = '<div class="text-muted">No contribution transactions for this month.</div>';
+      } else {
+        bodyEl.innerHTML = `
+          <div class="tiny-label mb-2">Fresh Contribution: <strong>${money(total)}</strong></div>
+          <div class="stack-gap adv-txn-list">
+            ${rows.map(r => {
+              if (r.type === "BUY") {
+                return `
+                  <div class="txn-card">
+                    <div class="split-row">
+                      <div class="left-col"><strong>${escapeHtml(r.stock)}</strong> <span class="tiny-label">(${escapeHtml(r.date)})</span></div>
+                      <div class="right-col"><strong>${money(r.freshContribution)}</strong></div>
+                    </div>
+                    <div class="tiny-label mt-1">BUY ${n(r.qty)} @ ${money(r.price)} | Buy Value: ${money(r.buyValue)} | Reused Sell Cash: ${money(r.fundedByPool)} | New Cash: ${money(r.freshContribution)}</div>
+                  </div>
+                `;
+              }
+              return `
+                <div class="txn-card">
+                  <div class="split-row">
+                    <div class="left-col"><strong>${escapeHtml(r.stock)}</strong> <span class="tiny-label">(${escapeHtml(r.date)})</span></div>
+                    <div class="right-col profit"><strong>+${money(r.sellNet)}</strong></div>
+                  </div>
+                  <div class="tiny-label mt-1">SELL ${n(r.qty)} @ ${money(r.price)} | Added to reusable cash pool</div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        `;
+      }
+    } else {
+      titleEl.textContent = `Monthly Details - ${month}`;
+      bodyEl.innerHTML = '<div class="text-muted">No detail view available.</div>';
+    }
+    modal.style.display = "flex";
   }
 
   function getLive(stock) {
@@ -419,7 +701,9 @@
     core.fdInflationGap = fdInflationGap;
 
     renderCoreCards(core);
-    renderBars(document.getElementById("advMonthlyChart"), model.monthlyRealized, "profit", "loss");
+    const onMonthTap = (kind, month) => openMonthlyTxnModal(kind, month, model);
+    renderBars(document.getElementById("advMonthlyChart"), model.monthlyRealized, "profit", "loss", { kind: "realized", onMonthTap });
+    renderMonthlyContributionTrend(document.getElementById("advMonthlyContributionTrend"), model.monthlyContribution, { kind: "contribution", onMonthTap });
     renderAllocation(active, settings);
     renderRanking(model);
     renderBehavior(model, settings, active);

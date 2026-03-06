@@ -1,4 +1,4 @@
-let reportRows = [];
+﻿let reportRows = [];
 
 function reportTxnBrokerage(txn, settings) {
   const tradeValue = Number(txn.qty) * Number(txn.price);
@@ -91,14 +91,14 @@ function renderReportRows() {
           <td>${r.stock}</td>
           <td>${r.type}</td>
           <td class="text-end">${r.qty}</td>
-          <td class="text-end">₹${Number(r.price).toFixed(2)}</td>
-          <td class="text-end">₹${Number(r.brokerageCalc).toFixed(2)}</td>
+          <td class="text-end">&#8377;${Number(r.price).toFixed(2)}</td>
+          <td class="text-end">&#8377;${Number(r.brokerageCalc).toFixed(2)}</td>
         </tr>
       `).join("")
     : `<tr><td colspan="6" class="text-center text-muted">No matching transactions</td></tr>`;
 
   const totalBrokerage = filtered.reduce((a, r) => a + Number(r.brokerageCalc || 0), 0);
-  summary.textContent = `Rows: ${filtered.length} | Total Brokerage: ₹${totalBrokerage.toFixed(2)}`;
+  summary.textContent = `Rows: ${filtered.length} | Total Brokerage: \u20B9${totalBrokerage.toFixed(2)}`;
 }
 
 function exportReportCSV() {

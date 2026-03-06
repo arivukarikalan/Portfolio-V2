@@ -1,0 +1,119 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Discipline Coach</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="Assets/Icons/app-favicon.svg">
+  <link href="CSS/ui.css" rel="stylesheet">
+  <link href="CSS/ui-theme.css" rel="stylesheet">
+  <link href="CSS/ui-improvements.css" rel="stylesheet">
+  <link href="CSS/ui-shell.css" rel="stylesheet">
+  <link href="CSS/advanced.css" rel="stylesheet">
+  <script src="JS/common-ui.js"></script>
+  <script src="JS/ui-shell.js"></script>
+</head>
+<body class="page-discipline">
+  <div class="container page-shell">
+    <section class="hero">
+      <h2 class="hero-title">Discipline Coach</h2>
+      <p class="hero-sub">Avoid panic exits, enforce cooldown, and follow planned re-entry levels.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h3 class="panel-title"><i class="bi bi-speedometer2"></i> Behavior Scorecard</h3></div>
+      <div class="panel-body">
+        <div class="adv-grid" id="guardScoreGrid"></div>
+      </div>
+    </section>
+
+    <section class="panel mt-3">
+      <div class="panel-head"><h3 class="panel-title"><i class="bi bi-emoji-frown"></i> Loss Sell Regret Review</h3></div>
+      <div class="panel-body">
+        <div id="guardRegretList" class="stack-gap"></div>
+      </div>
+    </section>
+
+    <section class="panel mt-3">
+      <div class="panel-head"><h3 class="panel-title"><i class="bi bi-shield-check"></i> Pre-Sell Guard Simulator</h3></div>
+      <div class="panel-body">
+        <form id="guardForm" class="stack-gap">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label">Stock</label>
+              <input id="guardStock" class="form-control" list="guardStockOptions" placeholder="Eg: MAZDOCK">
+              <datalist id="guardStockOptions"></datalist>
+            </div>
+            <div class="col-3">
+              <label class="form-label">Qty</label>
+              <input id="guardQty" type="number" min="1" class="form-control" placeholder="0">
+            </div>
+            <div class="col-3">
+              <label class="form-label">Sell Price</label>
+              <input id="guardSellPrice" type="number" step="0.01" class="form-control" placeholder="0">
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label">Sell Reason</label>
+              <select id="guardReason" class="form-select">
+                <option value="Thesis Broken">Thesis Broken</option>
+                <option value="Stop Loss">Stop Loss</option>
+                <option value="Rebalance">Rebalance</option>
+                <option value="Target Hit">Target Hit</option>
+                <option value="Emotional">Emotional / Fear</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Cooldown Hours</label>
+              <input id="guardCooldownHours" type="number" min="1" class="form-control" value="48">
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label">Re-entry L1</label>
+              <input id="guardReentryL1" type="number" step="0.01" class="form-control" placeholder="Optional">
+            </div>
+            <div class="col-6">
+              <label class="form-label">Re-entry L2</label>
+              <input id="guardReentryL2" type="number" step="0.01" class="form-control" placeholder="Optional">
+            </div>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="guardThesisBroken">
+            <label class="form-check-label" for="guardThesisBroken">Thesis is broken (fundamental reason confirmed)</label>
+          </div>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-clipboard2-pulse"></i> Analyze Sell Decision</button>
+        </form>
+        <div id="guardAdvice" class="mt-3"></div>
+      </div>
+    </section>
+
+    <section class="panel mt-3">
+      <div class="panel-head"><h3 class="panel-title"><i class="bi bi-list-check"></i> Re-entry Plan Watchlist</h3></div>
+      <div class="panel-body">
+        <div id="guardPlanList" class="stack-gap"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="JS/Db.js"></script>
+  <script src="JS/LivePrices.js"></script>
+  <script src="JS/App.js"></script>
+  <script src="JS/Settings.js"></script>
+  <script src="JS/Discipline.js"></script>
+  <script>
+    (function () {
+      const uid = localStorage.getItem("activeUserId");
+      if (!uid) { window.location.href = "./client/profile.html"; return; }
+      const boot = async () => {
+        if (typeof window.startApp === "function") await window.startApp();
+        if (typeof window.loadDisciplineCoach === "function") await window.loadDisciplineCoach();
+      };
+      boot().catch(err => console.error("Discipline bootstrap failed", err));
+    })();
+  </script>
+</body>
+</html>

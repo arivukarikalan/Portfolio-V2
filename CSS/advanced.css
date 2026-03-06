@@ -48,6 +48,106 @@
   background: linear-gradient(90deg, #ef4444, #f97316);
 }
 
+.adv-line-wrap {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.adv-line-main {
+  min-width: 0;
+}
+
+.adv-line-side {
+  border-top: 1px solid color-mix(in oklab, var(--border) 82%, transparent);
+  padding-top: 8px;
+}
+
+.adv-line-svg {
+  width: 100%;
+  height: clamp(190px, 24vw, 260px);
+  display: block;
+}
+
+.adv-line-grid {
+  stroke: rgba(148, 163, 184, 0.45);
+  stroke-width: 1;
+}
+
+.adv-line-path {
+  fill: none;
+  stroke: #0f62fe;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.adv-line-dot {
+  fill: #0f62fe;
+}
+
+.adv-line-axis {
+  font-size: 10px;
+  fill: #6b7280;
+  font-weight: 600;
+}
+
+.adv-line-value {
+  font-size: 10px;
+  fill: #3b82f6;
+  font-weight: 700;
+}
+
+.adv-line-value.clickable {
+  cursor: pointer;
+}
+
+.adv-amount-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.adv-txn-modal-card {
+  width: min(96vw, 760px) !important;
+  max-height: 84vh;
+  overflow: auto;
+}
+
+.adv-txn-list .txn-card {
+  margin-bottom: 0;
+}
+
+@media (min-width: 992px) {
+  .adv-line-wrap {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .adv-line-side {
+    border-top: 0;
+    border-left: 1px solid color-mix(in oklab, var(--border) 82%, transparent);
+    padding-top: 0;
+    padding-left: 10px;
+    max-height: 320px;
+    overflow: auto;
+  }
+
+  .adv-line-svg {
+    height: clamp(200px, 18vw, 300px);
+  }
+}
+
 .alloc-layout {
   display: grid;
   grid-template-columns: 120px 1fr;
@@ -86,6 +186,23 @@
 
   .alloc-layout {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 992px) {
+  .adv-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .alloc-layout {
+    grid-template-columns: 160px 1fr;
+  }
+}
+
+@media (min-width: 1440px) {
+  .adv-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

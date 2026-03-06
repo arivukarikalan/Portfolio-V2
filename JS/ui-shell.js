@@ -20,6 +20,7 @@
       "pnl.html": "P/L",
       "insights.html": "Insights",
       "advanced.html": "Advanced Dashboard",
+      "discipline.html": "Discipline Coach",
       "settings.html": "Settings",
       "debt.html": "Debt Management",
       "lossreport.html": "Loss Report",
@@ -38,6 +39,7 @@
       { href: "Pnl.html", icon: "bi-graph-up", label: "P/L" },
       { href: "Insights.html", icon: "bi-stars", label: "Insights" },
       { href: "Advanced.html", icon: "bi-speedometer2", label: "Advanced" },
+      { href: "Discipline.html", icon: "bi-shield-check", label: "Coach" },
       { href: "Advisor.html", icon: "bi-robot", label: "Advisor" },
       { href: "Debt.html", icon: "bi-wallet2", label: "Debt" },
       { href: "Expenses.html", icon: "bi-receipt-cutoff", label: "Expenses" },
@@ -157,6 +159,15 @@
     if (m) m.classList.remove("show");
   }
 
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function openCloudStatusModal(userId, status) {
     var modal = document.getElementById("appShellCloudModal");
     if (!modal) {
@@ -181,11 +192,11 @@
     var body = document.getElementById("appShellCloudBody");
     if (body) {
       body.innerHTML =
-        "<div><strong>User:</strong> " + userId + "</div>" +
-        "<div><strong>Total snapshots:</strong> " + status.totalSnapshots + "</div>" +
-        "<div><strong>Latest event:</strong> " + status.latestEvent + "</div>" +
-        "<div><strong>Latest export:</strong> " + status.latestExport + "</div>" +
-        "<div><strong>Latest tx count:</strong> " + status.latestTxCount + "</div>" +
+        "<div><strong>User:</strong> " + escapeHtml(userId) + "</div>" +
+        "<div><strong>Total snapshots:</strong> " + escapeHtml(status.totalSnapshots) + "</div>" +
+        "<div><strong>Latest event:</strong> " + escapeHtml(status.latestEvent) + "</div>" +
+        "<div><strong>Latest export:</strong> " + escapeHtml(status.latestExport) + "</div>" +
+        "<div><strong>Latest tx count:</strong> " + escapeHtml(status.latestTxCount) + "</div>" +
         "<div><strong>Recovery hash:</strong> " + (status.hasRecoveryHash ? "Present" : "<span class='text-danger'>Missing</span>") + "</div>";
     }
     modal.style.display = "block";
