@@ -535,8 +535,20 @@ export async function clearAndRestore(data) {
 */
 export async function restoreFromCloud(appsScriptUrl, opts = {}) {
   if (!appsScriptUrl) throw new Error('appsScriptUrl required');
-  const payload = await fetchLatestFromCloud(appsScriptUrl, { signal: opts.signal });
+  const resolvedUserId = (
+    opts.userId ||
+    CURRENT_USER_ID ||
+    (typeof localStorage !== 'undefined' ? localStorage.getItem('activeUserId') : null) ||
+    null
+  );
+  const payload = await fetchLatestFromCloud(appsScriptUrl, { signal: opts.signal, userId: resolvedUserId || undefined });
   if (!payload || !payload.data) throw new Error('No snapshot data found in cloud');
+  if (resolvedUserId) {
+    const payloadUserId = String(payload.userId || '').trim();
+    if (payloadUserId && payloadUserId !== String(resolvedUserId).trim()) {
+      throw new Error(`Cloud returned snapshot for userId "${payloadUserId}" while active user is "${resolvedUserId}"`);
+    }
+  }
   const confirmFn = opts.confirmFn || (msg => {
     if (typeof window !== 'undefined' && typeof window.appConfirmDialog === 'function') {
       return window.appConfirmDialog(msg, { title: 'Confirm Restore', okText: 'Restore' });

@@ -54,16 +54,17 @@
 
   function doLogout() {
     if (typeof window.appLogout === "function") {
-      window.appLogout();
-      return;
+      return Promise.resolve(window.appLogout());
     }
-    import("../client/profileManager.js")
+    return import("../client/profileManager.js")
       .then(function (mod) {
         if (mod && typeof mod.logout === "function") return mod.logout();
         goToProfile();
+        return null;
       })
       .catch(function () {
         goToProfile();
+        return null;
       });
   }
 
@@ -317,13 +318,23 @@
     var logoutBtn = document.getElementById("appShellLogoutBtn");
     if (logoutBtn) {
       logoutBtn.addEventListener("click", async function () {
+        logoutBtn.disabled = true;
         try {
+          var beforePath = String(window.location.pathname || "");
           if (typeof window.appShowActionProgress === "function") window.appShowActionProgress("Signing out...");
           else if (typeof window.appShowLoading === "function") window.appShowLoading("Signing out...");
           await doLogout();
-        } finally {
+          // Safety fallback: if logout resolved but navigation did not happen, force redirect.
+          setTimeout(function () {
+            var nowPath = String(window.location.pathname || "");
+            if (nowPath === beforePath) {
+              goToProfile();
+            }
+          }, 1200);
+        } catch (e) {
           if (typeof window.appHideActionProgress === "function") window.appHideActionProgress();
           else if (typeof window.appHideLoading === "function") window.appHideLoading();
+          logoutBtn.disabled = false;
         }
       });
     }

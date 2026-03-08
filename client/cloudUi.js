@@ -107,7 +107,8 @@ function wireButtons() {
   const restoreBtn = document.getElementById('restore-cloud-btn');
   const checkBtn = document.getElementById('check-cloud-btn');
 
-  if (syncBtn) {
+  if (syncBtn && syncBtn.dataset.wired !== '1') {
+    syncBtn.dataset.wired = '1';
     syncBtn.addEventListener('click', async () => {
       if (!window.APP_APPS_SCRIPT_URL) { showToast('Cloud URL not configured', 'error'); return; }
       syncBtn.disabled = true;
@@ -154,7 +155,8 @@ function wireButtons() {
     });
   }
 
-  if (restoreBtn) {
+  if (restoreBtn && restoreBtn.dataset.wired !== '1') {
+    restoreBtn.dataset.wired = '1';
     restoreBtn.addEventListener('click', async () => {
       if (!window.APP_APPS_SCRIPT_URL) { showToast('Cloud URL not configured', 'error'); return; }
       restoreBtn.disabled = true;
@@ -261,7 +263,8 @@ function wireButtons() {
     });
   }
 
-  if (checkBtn) {
+  if (checkBtn && checkBtn.dataset.wired !== '1') {
+    checkBtn.dataset.wired = '1';
     checkBtn.addEventListener('click', async () => {
       if (!window.APP_APPS_SCRIPT_URL) { showToast('Cloud URL not configured', 'error'); return; }
       checkBtn.disabled = true;

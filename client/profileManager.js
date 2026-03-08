@@ -521,6 +521,7 @@ export async function logout() {
   if (LOGOUT_IN_PROGRESS) {
     return LOGOUT_IN_PROGRESS;
   }
+  const startedAt = Date.now();
   showBusyOverlay('Signing out and syncing cloud backup...');
   LOGOUT_IN_PROGRESS = (async () => {
   try {
@@ -590,6 +591,10 @@ export async function logout() {
   try {
     return await LOGOUT_IN_PROGRESS;
   } finally {
+    const elapsed = Date.now() - startedAt;
+    if (elapsed < 650) {
+      await delay(650 - elapsed);
+    }
     hideBusyOverlay();
     LOGOUT_IN_PROGRESS = null;
   }

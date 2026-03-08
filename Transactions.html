@@ -149,14 +149,14 @@
 <section class="panel">
   <div class="panel-head">
     <div>
-      <h3 class="panel-title"><i class="bi bi-file-earmark-spreadsheet"></i> Broker CSV Import</h3>
-      <p class="panel-note">Import Zerodha directly or map columns for other brokers.</p>
+      <h3 class="panel-title"><i class="bi bi-file-earmark-spreadsheet"></i> Broker File Import</h3>
+      <p class="panel-note">Import CSV or Excel. Zerodha auto-detects; other brokers can use column mapping.</p>
     </div>
   </div>
   <div class="panel-body tight">
     <div class="row g-2">
       <div class="col-12">
-        <input id="brokerImportFile" type="file" class="form-control" accept=".csv,text/csv">
+        <input id="brokerImportFile" type="file" class="form-control" accept=".csv,text/csv,.xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
       </div>
       <div class="col-12 d-flex gap-2">
         <button id="brokerImportBtn" type="button" class="btn btn-primary flex-fill">
@@ -192,6 +192,7 @@
 <script src="JS/Db.js"></script>
 <script src="JS/App.js"></script>
 <script src="JS/Settings.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="JS/Transactions.js"></script>
 <script>
   (function () {
