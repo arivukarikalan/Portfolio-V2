@@ -1,0 +1,33 @@
+Converted rows: 414
+Mapped by alias: 287
+Unmapped names: 30
+ANDHRA CEMENTS LTD.
+CARRARO INDIA LIMITED
+COLGATE-PALMOLIVE (INDIA) LTD.
+CROPSTER AGRO LIMITED
+Davangere Sugar Company Limite
+Emmvee Photovoltaic Power Limi
+GILLETTE INDIA LTD.
+HINDUSTAN ZINC LTD.
+Hemisphere Properties India Li
+Hexaware Technologies Limited
+ICICI Prudential Mutual Fund
+Indian Railway Finance Corpora
+K.C.P.LTD.
+KARUR VYSYA BANK LTD.
+LORENZINI APPARELS LIMITED
+Mazagon Dock Shipbuilders Limi
+Mirae Asset Mutual Fund
+Narayana Hrudayalaya Limited
+National Securities Depository
+RELIANCE INDUSTRIES LTD.
+Rishabh Instruments Limited
+Shriram Finance Limited
+TATA MOTORS PASSENGER VEHICLES
+TATAMOTORS Tata Motors Limited
+TIPS MUSIC LIMITED
+Tolins Tyres Limited
+Varun Beverages Limited
+Vikram Solar Limited
+WAAREE RENEWABLE TECHNOLOGIES
+Waaree Energies Limited

@@ -818,6 +818,8 @@ function detectBrokerByHeaders(headers) {
 function detectSpecialImportFormat(headers) {
   const keys = new Set((headers || []).map(h => compactHeaderKey(h)));
   const has = (k) => keys.has(compactHeaderKey(k));
+  const isFlatTradeLedger = has("scrip") && has("company") && has("date") && has("bqty") && has("snrate") && has("sqty") && has("bnrate");
+  if (isFlatTradeLedger) return "flat_trade_ledger";
   const isGrowwPnl = has("stockname") && has("quantity") && has("buydate") && has("buyprice") && has("selldate") && has("sellprice");
   if (isGrowwPnl) return "groww_pnl_realised";
   return "";
@@ -897,6 +899,78 @@ function normalizeImportedStock(raw) {
   return base.replace(/-(EQ|BE|BZ|BL|SM|ST|GC|GS|IV)$/i, "");
 }
 
+function normalizeFlatTradeAliasKey(value) {
+  const text = String(value || "").toUpperCase().trim();
+  if (!text) return "";
+  const compact = text
+    .replace(/[^A-Z0-9 ]+/g, " ")
+    .replace(/\b(LIMITED|LTD|INDIA|INDUSTRIES|INDUSTRY|COMPANY|CO|CORP|CORPORATION)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return compact;
+}
+
+const FLAT_TRADE_COMPANY_TO_STOCK = {
+  "AGI GREENPAC": "AGI",
+  "AMBUJA CEMENTS": "AMBUJACEM",
+  "ANANT RAJ": "ANANTRAJ",
+  "APOLLO TYRES": "APOLLOTYRE",
+  "BERGER PAINTS": "BERGEPAINT",
+  "BRIGADE ENTERPRISES": "BRIGADE",
+  "BSE": "BSE",
+  "CAPLIN POINT LABORATORIES": "CAPLIPOINT",
+  "CENTRAL DEPO SER I": "CDSL",
+  "CIPLA": "CIPLA",
+  "CORAL LABORATORIES": "CORALAB",
+  "DABUR": "DABUR",
+  "DLF": "DLF",
+  "EIH": "EIHOTEL",
+  "EMAMI": "EMAMILTD",
+  "EASY TRIP PLANNERS": "EASEMYTRIP",
+  "ETERNAL": "ETERNAL",
+  "GOYAL ALUMINIUMS": "GOYALALUM",
+  "GRAVITA": "GRAVITA",
+  "HINDALCO": "HINDALCO",
+  "HINDUSTAN AERONAUTICS": "HAL",
+  "INDIAN OVERSEAS BANK": "IOB",
+  "JK TYRE": "JKTYRE",
+  "KNR CONSTRUCTIONS": "KNRCON",
+  "MARKSANS PHARMA": "MARKSANS",
+  "NATCO PHARMA": "NATCOPHARM",
+  "NATIONAL ALUMINIUM": "NATIONALUM",
+  "NHPC": "NHPC",
+  "NMDC": "NMDC",
+  "RPG LIFE SCIENCES": "RPGLIFE",
+  "RADHIKA JEWELTECH": "RADHIKAJWE",
+  "RELIANCE INDUSTRIES": "RELIANCE",
+  "SOUTH INDIAN BANK": "SOUTHBANK",
+  "SUN TV NETWORK": "SUNTV",
+  "SUZLON ENERGY": "SUZLON",
+  "SHANTI GOLD INTERNATIONAL LIMI": "SHANTIGOLD",
+  "TAMILNADU PETROPRODUCTS": "TNPETRO",
+  "TATA POWER": "TATAPOWER",
+  "TATA STEEL": "TATASTEEL",
+  "WIPRO": "WIPRO",
+  "ICICI PRUDENTIAL GOLD ETF": "GOLDIETF",
+  "MOTILAL OSWAL MOST SHARES NASD": "MON100",
+  "GOKUL AGRO RESOURCES": "GOKULAGRO",
+  "GOKUL AGRO": "GOKULAGRO"
+};
+
+function getFlatTradeCompanyAliasMap() {
+  const out = Object.assign({}, FLAT_TRADE_COMPANY_TO_STOCK);
+  try {
+    const raw = localStorage.getItem("flatTradeStockAliases");
+    const parsed = raw ? JSON.parse(raw) : {};
+    Object.keys(parsed || {}).forEach(k => {
+      const key = normalizeFlatTradeAliasKey(k);
+      const val = normalizeImportedStock(parsed[k]);
+      if (key && val) out[key] = val;
+    });
+  } catch (e) {}
+  return out;
+}
+
 function parseGrowwPnlRows(headers, rows) {
   const idx = {
     stock: findHeaderIndex(headers, ["stock_name", "stockname", "stock"]),
@@ -950,6 +1024,93 @@ function parseGrowwPnlRows(headers, rows) {
       importSource: "groww_pnl",
       importKey: `${baseKey}|SELL`
     });
+  });
+
+  return { rows: out, invalidRows, reasonCounts };
+}
+
+function extractFlatTradeStockName(scripRaw) {
+  const text = String(scripRaw || "").trim();
+  if (!text) return "";
+  // Typical: "500187 AGI GREENPAC LIMITED" -> "AGI GREENPAC LIMITED"
+  const withoutCode = text.replace(/^\d+\s+/, "").trim();
+  const aliasMap = getFlatTradeCompanyAliasMap();
+  const key = normalizeFlatTradeAliasKey(withoutCode || text);
+  const mapped = aliasMap[key];
+  if (mapped) return normalizeImportedStock(mapped);
+  return normalizeImportedStock(withoutCode || text);
+}
+
+function parseFlatTradeLedgerRows(headers, rows) {
+  const idx = {
+    scrip: findHeaderIndex(headers, ["scrip"]),
+    date: findHeaderIndex(headers, ["date"]),
+    bQty: findHeaderIndex(headers, ["b_qty", "bqty"]),
+    bRate: findHeaderIndex(headers, ["b_n_rate", "bnrate", "b_gr_rate", "bgrrate"]),
+    sQty: findHeaderIndex(headers, ["s_qty", "sqty"]),
+    sRate: findHeaderIndex(headers, ["s_n_rate", "snrate", "s_gr_rate", "sgrrate"]),
+    narration: findHeaderIndex(headers, ["narration"]),
+    company: findHeaderIndex(headers, ["company"])
+  };
+  if ([idx.scrip, idx.date, idx.bQty, idx.bRate, idx.sQty, idx.sRate].some(v => v < 0)) {
+    return { error: "Flat Trade format columns not found (Scrip/Date/B.Qty/B.N.Rate/S.Qty/S.N.Rate)." };
+  }
+
+  let invalidRows = 0;
+  const reasonCounts = {};
+  const addReason = (k) => { reasonCounts[k] = (reasonCounts[k] || 0) + 1; };
+  const out = [];
+
+  (rows || []).forEach((row, i) => {
+    const stock = extractFlatTradeStockName(row[idx.scrip]);
+    const date = parseImportDate(row[idx.date]);
+    const buyQty = parseImportNum(row[idx.bQty]);
+    const buyRate = parseImportNum(row[idx.bRate]);
+    const sellQty = parseImportNum(row[idx.sQty]);
+    const sellRate = parseImportNum(row[idx.sRate]);
+    const narration = idx.narration >= 0 ? String(row[idx.narration] || "").trim() : "";
+    const company = idx.company >= 0 ? String(row[idx.company] || "").trim() : "";
+
+    if (!stock || !date) {
+      invalidRows++;
+      addReason(!stock ? "missing_stock" : "invalid_date");
+      return;
+    }
+
+    let created = 0;
+    if (buyQty > 0 && buyRate > 0) {
+      out.push({
+        date,
+        stock,
+        type: "BUY",
+        qty: buyQty,
+        price: buyRate,
+        reason: "Broker Import",
+        note: `Imported: Flat Trade ledger${narration ? ` | ${narration}` : ""}${company ? ` | ${company}` : ""}`,
+        importSource: "flat_trade_ledger",
+        importKey: `flat_trade|${i}|BUY|${date}|${stock}|${buyQty}|${buyRate.toFixed(4)}`
+      });
+      created++;
+    }
+    if (sellQty > 0 && sellRate > 0) {
+      out.push({
+        date,
+        stock,
+        type: "SELL",
+        qty: sellQty,
+        price: sellRate,
+        reason: "Broker Import",
+        note: `Imported: Flat Trade ledger${narration ? ` | ${narration}` : ""}${company ? ` | ${company}` : ""}`,
+        importSource: "flat_trade_ledger",
+        importKey: `flat_trade|${i}|SELL|${date}|${stock}|${sellQty}|${sellRate.toFixed(4)}`
+      });
+      created++;
+    }
+
+    if (!created) {
+      invalidRows++;
+      addReason("zero_qty_or_price");
+    }
   });
 
   return { rows: out, invalidRows, reasonCounts };
@@ -1519,7 +1680,23 @@ async function importBrokerCsvFlow() {
       }
     };
 
-    if (specialFormat === "groww_pnl_realised") {
+    if (specialFormat === "flat_trade_ledger") {
+      const flatParsed = parseFlatTradeLedgerRows(headers, rows);
+      if (flatParsed.error) {
+        if (typeof showToast === "function") showToast(flatParsed.error, "error");
+        return;
+      }
+      parsedRows = flatParsed.rows || [];
+      invalidRows = Number(flatParsed.invalidRows || 0);
+      Object.keys(flatParsed.reasonCounts || {}).forEach(k => addReason(k));
+      if (meta) {
+        meta.textContent = `Detected: Flat Trade Ledger (${String(format || "").toUpperCase()}) | Generated txns: ${parsedRows.length}${invalidRows ? ` | Skipped invalid: ${invalidRows}` : ""}${sheetName ? ` | Sheet: ${sheetName}` : ""}`;
+      }
+      if (mappingPanel) {
+        mappingPanel.style.display = "none";
+        mappingPanel.innerHTML = "";
+      }
+    } else if (specialFormat === "groww_pnl_realised") {
       const growwParsed = parseGrowwPnlRows(headers, rows);
       if (growwParsed.error) {
         if (typeof showToast === "function") showToast(growwParsed.error, "error");
@@ -2304,9 +2481,52 @@ function renderHoldingsVisuals(rows) {
     return map;
   }
 
+  function getHoldingsSortMode() {
+    try {
+      const saved = String(localStorage.getItem("holdings_sort_mode") || "").trim();
+      if (saved) return saved;
+    } catch (e) {}
+    return "invested_desc";
+  }
+
+  function sortHoldingRows(rows, mode) {
+    const list = (rows || []).slice();
+    const compareName = (a, b) => String(a.stock || "").localeCompare(String(b.stock || ""));
+    switch (String(mode || "")) {
+      case "name_asc":
+        return list.sort(compareName);
+      case "name_desc":
+        return list.sort((a, b) => compareName(b, a));
+      case "pl_desc":
+        return list.sort((a, b) => Number(b.unrealizedSort || 0) - Number(a.unrealizedSort || 0));
+      case "pl_asc":
+        return list.sort((a, b) => Number(a.unrealizedSort || 0) - Number(b.unrealizedSort || 0));
+      case "qty_desc":
+        return list.sort((a, b) => Number(b.qty || 0) - Number(a.qty || 0));
+      case "days_desc":
+        return list.sort((a, b) => Number(b.days || 0) - Number(a.days || 0));
+      case "invested_desc":
+      default:
+        return list.sort((a, b) => Number(b.invested || 0) - Number(a.invested || 0));
+    }
+  }
+
   function calculateHoldings() {
     const holdingsList = document.getElementById("holdingsList");
     if (!holdingsList) return;
+
+    const sortEl = document.getElementById("holdingsSort");
+    if (sortEl) {
+      if (sortEl.dataset.wired !== "1") {
+        sortEl.dataset.wired = "1";
+        sortEl.addEventListener("change", () => {
+          try { localStorage.setItem("holdings_sort_mode", String(sortEl.value || "invested_desc")); } catch (e) {}
+          calculateHoldings();
+        });
+      }
+      const mode = getHoldingsSortMode();
+      if (sortEl.value !== mode) sortEl.value = mode;
+    }
   
     getSettings(settings => {
       db.transaction("transactions", "readonly")
@@ -2317,6 +2537,7 @@ function renderHoldingsVisuals(rows) {
   
         holdingsList.innerHTML = "";
         const visualRows = [];
+        const holdingRows = [];
   
         for (const s in map) {
           const lots = map[s].lots;
@@ -2354,43 +2575,60 @@ function renderHoldingsVisuals(rows) {
             invested,
             unrealized: hasLive ? unrealized : 0
           });
+          holdingRows.push({
+            stock: s,
+            qty,
+            invested,
+            days,
+            hasLive,
+            ltp,
+            currentValue,
+            unrealized,
+            unrealizedSort: hasLive ? Number(unrealized || 0) : Number.NEGATIVE_INFINITY,
+            cyclePanelId,
+            stockToken,
+            cycleHtml
+          });
+        }
 
+        const sortedRows = sortHoldingRows(holdingRows, getHoldingsSortMode());
+        sortedRows.forEach(r => {
           holdingsList.innerHTML += `
             <div class="txn-card">
               <div class="holding-head-row">
-                <button type="button" class="holding-name-btn" onclick="toggleHoldingCycle('${cyclePanelId}', this)" aria-expanded="false">
-                  <span class="txn-name">${s}</span>
+                <button type="button" class="holding-name-btn" onclick="toggleHoldingCycle('${r.cyclePanelId}', this)" aria-expanded="false">
+                  <span class="txn-name">${r.stock}</span>
                   <i class="bi bi-chevron-down"></i>
                 </button>
                 <button
                   type="button"
                   class="holding-trend-btn"
-                  onclick="openHoldingPriceTrend('${stockToken}')"
+                  onclick="openHoldingPriceTrend('${r.stockToken}')"
                   title="Show last 7 days price trend"
                   aria-label="Show last 7 days price trend">
                   <i class="bi bi-graph-up-arrow"></i>
                 </button>
               </div>
               <div class="txn-sub">
-                Qty ${qty} |
-                Avg ₹${(invested / qty).toFixed(2)} |
-                Invested ₹${invested.toFixed(2)} |
-                Days ${days}
+                Qty ${r.qty} |
+                Avg ₹${(r.invested / r.qty).toFixed(2)} |
+                Invested ₹${r.invested.toFixed(2)} |
+                Days ${r.days}
               </div>
               <div class="split-row mt-1">
                 <div class="left-col tiny-label">
-                  ${hasLive ? `LTP ₹${ltp.toFixed(2)} | Value ₹${currentValue.toFixed(2)}` : "LTP: -"}
+                  ${r.hasLive ? `LTP ₹${r.ltp.toFixed(2)} | Value ₹${r.currentValue.toFixed(2)}` : "LTP: -"}
                 </div>
-                <div class="right-col tiny-label ${hasLive && unrealized >= 0 ? "profit" : "loss"}">
-                  ${hasLive ? `U P/L ₹${unrealized.toFixed(2)}` : ""}
+                <div class="right-col tiny-label ${r.hasLive && r.unrealized >= 0 ? "profit" : "loss"}">
+                  ${r.hasLive ? `U P/L ₹${r.unrealized.toFixed(2)}` : ""}
                 </div>
               </div>
-              <div id="${cyclePanelId}" class="holding-cycle-wrap" style="display:none">
+              <div id="${r.cyclePanelId}" class="holding-cycle-wrap" style="display:none">
                 <div class="tiny-label holding-cycle-title">Current cycle transactions</div>
-                ${cycleHtml}
+                ${r.cycleHtml}
               </div>
             </div>`;
-        }
+        });
   
         if (!holdingsList.innerHTML) {
           holdingsList.innerHTML =

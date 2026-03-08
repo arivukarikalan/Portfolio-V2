@@ -13,6 +13,33 @@ function normalizeNseTicker(value) {
   return cleaned ? `NSE:${cleaned}` : "";
 }
 
+function normalizeFlatTradeAliasKey(value) {
+  const text = String(value || "").toUpperCase().trim();
+  if (!text) return "";
+  return text
+    .replace(/[^A-Z0-9 ]+/g, " ")
+    .replace(/\b(LIMITED|LTD|INDIA|INDUSTRIES|INDUSTRY|COMPANY|CO|CORP|CORPORATION)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function saveFlatTradeAliases(fromStocks, toStock) {
+  const target = normalizeMappingStockName(toStock);
+  if (!target) return;
+  try {
+    const raw = localStorage.getItem("flatTradeStockAliases");
+    const parsed = raw ? JSON.parse(raw) : {};
+    const base = (parsed && typeof parsed === "object") ? parsed : {};
+    (fromStocks || []).forEach(s => {
+      const k = normalizeFlatTradeAliasKey(s);
+      if (k && k !== normalizeFlatTradeAliasKey(target)) {
+        base[k] = target;
+      }
+    });
+    localStorage.setItem("flatTradeStockAliases", JSON.stringify(base));
+  } catch (e) {}
+}
+
 function tickerFromStockName(stock) {
   return normalizeNseTicker(stock);
 }
@@ -61,16 +88,15 @@ function renderStockMappings(rows, tickerProbe = {}) {
   const host = document.getElementById("mappingList");
   const summaryHost = document.getElementById("mappingSummary");
   const barsHost = document.getElementById("mappingHealthBars");
+  const actionsHost = document.getElementById("mappingActions");
   const total = rows.length;
   const enabled = rows.filter(r => r.enabled !== false).length;
-  const valid = rows.filter(r => {
-    const t = normalizeNseTicker(r.ticker);
-    if (!t) return false;
-    if (r.enabled === false) return false;
-    const p = tickerProbe[t];
-    return !!(p && p.hasPrice);
-  }).length;
+  const valid = rows.filter(r => getMappingIssue(r, tickerProbe).code === "ok").length;
   const invalid = rows.filter(r => r.enabled !== false).length - valid;
+  const invalidRows = rows.filter(r => {
+    const issue = getMappingIssue(r, tickerProbe);
+    return issue.code !== "ok" && issue.code !== "disabled";
+  });
 
   if (summaryHost) {
     summaryHost.innerHTML = `
@@ -100,6 +126,28 @@ function renderStockMappings(rows, tickerProbe = {}) {
     `;
   }
 
+  if (actionsHost) {
+    if (invalidRows.length > 0) {
+      actionsHost.innerHTML = `
+        <div class="d-flex justify-content-end">
+          <button id="deleteInvalidMappingsBtn" type="button" class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-trash3"></i> Delete All Invalid Tickers (${invalidRows.length})
+          </button>
+        </div>
+      `;
+      const btn = document.getElementById("deleteInvalidMappingsBtn");
+      if (btn && btn.dataset.wired !== "1") {
+        btn.dataset.wired = "1";
+        btn.addEventListener("click", async () => {
+          const stocks = invalidRows.map(r => r.stock).filter(Boolean);
+          await deleteInvalidMappings(stocks);
+        });
+      }
+    } else {
+      actionsHost.innerHTML = "";
+    }
+  }
+
   if (!host) return;
   if (!rows.length) {
     host.innerHTML = `<div class="txn-card text-center text-muted">No stock mappings yet</div>`;
@@ -108,24 +156,8 @@ function renderStockMappings(rows, tickerProbe = {}) {
 
   host.innerHTML = rows.map(r => `
     ${(() => {
-      const normalizedTicker = normalizeNseTicker(r.ticker);
-      const tickerMissing = !normalizedTicker;
-      const invalidFormat = !!r.ticker && !normalizedTicker;
-      const probe = normalizedTicker ? tickerProbe[normalizedTicker] : null;
-      const liveMissing = !!(normalizedTicker && r.enabled !== false && probe && !probe.hasPrice);
-
-      let status = "";
-      if (invalidFormat) {
-        status = `<span class="status-pill-mini bad">Invalid ticker format</span>`;
-      } else if (tickerMissing) {
-        status = `<span class="status-pill-mini bad">Ticker missing</span>`;
-      } else if (liveMissing) {
-        status = `<span class="status-pill-mini bad">Ticker not resolving price</span>`;
-      } else if (r.enabled === false) {
-        status = `<span class="status-pill-mini warn">Disabled</span>`;
-      } else {
-        status = `<span class="status-pill-mini ok">Valid</span>`;
-      }
+      const issue = getMappingIssue(r, tickerProbe);
+      const status = issue.status;
 
       return `
     <div class="txn-card">
@@ -135,7 +167,7 @@ function renderStockMappings(rows, tickerProbe = {}) {
           <div class="tiny-label">${r.ticker || "Ticker pending"} | ${r.enabled ? "Enabled" : "Disabled"}</div>
           <div class="mt-1">${status}</div>
         </div>
-        <div class="right-col d-flex gap-2 justify-content-end">
+        <div class="right-col d-flex align-items-center gap-2 justify-content-end">
           <button class="btn btn-sm btn-warning" onclick="editStockMapping('${r.stock.replace(/'/g, "\\'")}')">
             <i class="bi bi-pencil"></i>
           </button>
@@ -147,6 +179,28 @@ function renderStockMappings(rows, tickerProbe = {}) {
     </div>
   `; })()}
   `).join("");
+}
+
+function getMappingIssue(row, tickerProbe = {}) {
+  const normalizedTicker = normalizeNseTicker(row?.ticker);
+  const tickerMissing = !normalizedTicker;
+  const invalidFormat = !!row?.ticker && !normalizedTicker;
+  const probe = normalizedTicker ? tickerProbe[normalizedTicker] : null;
+  const liveMissing = !!(normalizedTicker && row?.enabled !== false && probe && !probe.hasPrice);
+
+  if (invalidFormat) {
+    return { code: "invalid_format", status: `<span class="status-pill-mini bad">Invalid ticker format</span>` };
+  }
+  if (tickerMissing) {
+    return { code: "missing", status: `<span class="status-pill-mini bad">Ticker missing</span>` };
+  }
+  if (liveMissing) {
+    return { code: "not_resolving", status: `<span class="status-pill-mini bad">Ticker not resolving price</span>` };
+  }
+  if (row?.enabled === false) {
+    return { code: "disabled", status: `<span class="status-pill-mini warn">Disabled</span>` };
+  }
+  return { code: "ok", status: `<span class="status-pill-mini ok">Valid</span>` };
 }
 
 function pctText(v) {
@@ -165,6 +219,66 @@ async function loadStockMappings() {
   renderStockMappings(sorted, probe);
 }
 
+function readAllMappings() {
+  return new Promise((resolve, reject) => {
+    try {
+      if (!db?.objectStoreNames?.contains("stock_mappings")) {
+        resolve([]);
+        return;
+      }
+      const req = db.transaction("stock_mappings", "readonly").objectStore("stock_mappings").getAll();
+      req.onsuccess = e => resolve(Array.isArray(e?.target?.result) ? e.target.result : []);
+      req.onerror = () => reject(req.error || new Error("Failed to read mappings"));
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+function saveMappingAndMergeStocks({ stock, ticker, enabled, mergeFromStocks }) {
+  return new Promise((resolve, reject) => {
+    try {
+      const mergeList = Array.from(new Set((mergeFromStocks || []).map(normalizeMappingStockName).filter(s => s && s !== stock)));
+      const tx = db.transaction(["stock_mappings", "transactions"], "readwrite");
+      const mapStore = tx.objectStore("stock_mappings");
+      const txnStore = tx.objectStore("transactions");
+
+      mapStore.put({
+        stock,
+        ticker,
+        exchange: "NSE",
+        enabled,
+        updatedAt: new Date().toISOString()
+      });
+
+      mergeList.forEach(s => mapStore.delete(s));
+
+      if (mergeList.length) {
+        const fromSet = new Set(mergeList);
+        const req = txnStore.getAll();
+        req.onsuccess = e => {
+          const rows = Array.isArray(e?.target?.result) ? e.target.result : [];
+          rows.forEach(r => {
+            const txnStock = normalizeMappingStockName(r?.stock || "");
+            if (!fromSet.has(txnStock)) return;
+            const updated = Object.assign({}, r, {
+              stock,
+              updatedAt: new Date().toISOString()
+            });
+            try { txnStore.put(updated); } catch (err) {}
+          });
+        };
+      }
+
+      tx.oncomplete = () => resolve({ ok: true, merged: mergeList.length });
+      tx.onerror = () => reject(tx.error || new Error("Failed to save mapping"));
+      tx.onabort = () => reject(tx.error || new Error("Save aborted"));
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 function editStockMapping(stock) {
   if (!db?.objectStoreNames?.contains("stock_mappings")) return;
   db.transaction("stock_mappings", "readonly")
@@ -176,6 +290,7 @@ function editStockMapping(stock) {
       const tickerEl = document.getElementById("mapTicker");
       const enabledEl = document.getElementById("mapEnabled");
       if (stockEl) stockEl.value = row.stock || "";
+      if (stockEl) stockEl.dataset.originalStock = row.stock || "";
       if (tickerEl) tickerEl.value = row.ticker || "";
       if (tickerEl) {
         const defaultTicker = tickerFromStockName(row.stock || "");
@@ -197,6 +312,29 @@ async function deleteStockMapping(stock) {
   tx.oncomplete = () => {
     loadStockMappings();
     if (typeof showToast === "function") showToast("Mapping deleted successfully");
+  };
+}
+
+async function deleteInvalidMappings(stocks) {
+  const list = Array.from(new Set((stocks || []).map(normalizeMappingStockName).filter(Boolean)));
+  if (!list.length) {
+    if (typeof showToast === "function") showToast("No invalid tickers to delete", "info");
+    return;
+  }
+  const ok = (typeof window !== "undefined" && typeof window.appConfirmDialog === "function")
+    ? await window.appConfirmDialog(`Delete ${list.length} invalid ticker mapping(s)?`, { title: "Delete Invalid Tickers", okText: "Delete All" })
+    : window.confirm(`Delete ${list.length} invalid ticker mapping(s)?`);
+  if (!ok) return;
+
+  const tx = db.transaction("stock_mappings", "readwrite");
+  const store = tx.objectStore("stock_mappings");
+  list.forEach(s => store.delete(s));
+  tx.oncomplete = () => {
+    loadStockMappings();
+    if (typeof showToast === "function") showToast(`Deleted ${list.length} invalid ticker mapping(s)`, "success");
+  };
+  tx.onerror = () => {
+    if (typeof showToast === "function") showToast("Failed to delete invalid mappings", "error");
   };
 }
 
@@ -228,11 +366,12 @@ function bindStockMappingForm() {
     tickerEl.dataset.autoFromStock = String(current === defaultTicker ? 1 : 0);
   });
 
-  form.addEventListener("submit", e => {
+  form.addEventListener("submit", async e => {
     e.preventDefault();
     const stock = normalizeMappingStockName(stockEl?.value || "");
     const ticker = normalizeNseTicker(tickerEl?.value || stock);
     const enabled = document.getElementById("mapEnabled")?.checked !== false;
+    const originalStock = normalizeMappingStockName(stockEl?.dataset.originalStock || "");
 
     if (!stock) {
       if (typeof showToast === "function") showToast("Stock name is required", "error");
@@ -242,23 +381,54 @@ function bindStockMappingForm() {
       if (typeof showToast === "function") showToast("Valid NSE ticker is required", "error");
       return;
     }
+    try {
+      const all = await readAllMappings();
+      const tickerMatches = all
+        .map(r => normalizeMappingStockName(r.stock || ""))
+        .filter((s, i) => normalizeNseTicker(all[i]?.ticker || "") === ticker && s && s !== stock);
 
-    const tx = db.transaction("stock_mappings", "readwrite");
-    tx.objectStore("stock_mappings").put({
-      stock,
-      ticker,
-      exchange: "NSE",
-      enabled,
-      updatedAt: new Date().toISOString()
-    });
-    tx.oncomplete = () => {
+      const mergeFrom = new Set();
+      tickerMatches.forEach(s => mergeFrom.add(s));
+      if (originalStock && originalStock !== stock) {
+        mergeFrom.add(originalStock);
+      }
+
+      if (tickerMatches.length > 0) {
+        const list = tickerMatches.join(", ");
+        const msg = `Ticker ${ticker} is already mapped to: ${list}. Merge these into ${stock} and update all related transaction stock names?`;
+        const ok = (typeof window !== "undefined" && typeof window.appConfirmDialog === "function")
+          ? await window.appConfirmDialog(msg, { title: "Merge Duplicate Ticker", okText: "Merge" })
+          : window.confirm(msg);
+        if (!ok) return;
+      } else if (originalStock && originalStock !== stock) {
+        const msg = `Rename stock "${originalStock}" to "${stock}" across all transactions?`;
+        const ok = (typeof window !== "undefined" && typeof window.appConfirmDialog === "function")
+          ? await window.appConfirmDialog(msg, { title: "Rename Stock", okText: "Rename" })
+          : window.confirm(msg);
+        if (!ok) return;
+      }
+
+      const res = await saveMappingAndMergeStocks({
+        stock,
+        ticker,
+        enabled,
+        mergeFromStocks: Array.from(mergeFrom)
+      });
+      saveFlatTradeAliases(Array.from(mergeFrom), stock);
+
       form.reset();
+      if (stockEl) stockEl.dataset.originalStock = "";
       const enabledEl = document.getElementById("mapEnabled");
       if (enabledEl) enabledEl.checked = true;
       if (tickerEl) tickerEl.dataset.autoFromStock = "1";
       loadStockMappings();
-      if (typeof showToast === "function") showToast("Mapping saved successfully");
-    };
+      if (typeof showToast === "function") {
+        if (res?.merged > 0) showToast(`Mapping saved and merged ${res.merged} duplicate stock name(s)`, "success");
+        else showToast("Mapping saved successfully", "success");
+      }
+    } catch (err) {
+      if (typeof showToast === "function") showToast("Failed to save mapping: " + (err?.message || err), "error");
+    }
   });
 }
 

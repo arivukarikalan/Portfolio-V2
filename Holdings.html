@@ -51,7 +51,21 @@
        FEATURE: Holdings List (Rendered via JS)
        ================================================= -->
   <section class="list-shell">
-    <div class="section-title">Current Holdings</div>
+    <div class="split-row mb-2">
+      <div class="section-title mb-0">Current Holdings</div>
+      <div class="d-flex align-items-center gap-2">
+        <label for="holdingsSort" class="tiny-label m-0">Sort</label>
+        <select id="holdingsSort" class="form-select form-select-sm" style="min-height:34px;min-width:180px;">
+          <option value="invested_desc">Invested (High to Low)</option>
+          <option value="name_asc">Name (A to Z)</option>
+          <option value="name_desc">Name (Z to A)</option>
+          <option value="pl_desc">P/L (High to Low)</option>
+          <option value="pl_asc">P/L (Low to High)</option>
+          <option value="qty_desc">Quantity (High to Low)</option>
+          <option value="days_desc">Days Held (High to Low)</option>
+        </select>
+      </div>
+    </div>
     <div id="holdingsList"></div>
   </section>
 

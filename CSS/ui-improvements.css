@@ -784,6 +784,28 @@ body.app-shell-legacy-hide .toast-host {
   }
 }
 
+/* Stock mappings page: keep action icons square and add card spacing */
+.page-settings #mappingList .txn-card + .txn-card {
+  margin-top: 10px;
+}
+
+.page-settings #mappingList .txn-card .right-col {
+  width: auto !important;
+}
+
+.page-settings #mappingList .txn-card .right-col .btn {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  flex: 0 0 40px;
+}
+
 /* Holdings: 7-day stock trend modal */
 .holding-trend-modal {
   position: fixed;
