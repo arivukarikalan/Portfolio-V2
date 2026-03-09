@@ -2293,6 +2293,8 @@ function toggleHoldingCycle(panelId, btnEl) {
   panel.style.display = isOpen ? "none" : "block";
   if (btnEl) {
     btnEl.setAttribute("aria-expanded", String(!isOpen));
+    const textEl = btnEl.querySelector("span");
+    if (textEl) textEl.textContent = isOpen ? "Show Transactions" : "Hide Transactions";
     const icon = btnEl.querySelector("i");
     if (icon) {
       icon.classList.remove("bi-chevron-down", "bi-chevron-up");
@@ -2486,7 +2488,7 @@ function renderHoldingsVisuals(rows) {
       const saved = String(localStorage.getItem("holdings_sort_mode") || "").trim();
       if (saved) return saved;
     } catch (e) {}
-    return "invested_desc";
+    return "profit_desc";
   }
 
   function sortHoldingRows(rows, mode) {
@@ -2495,19 +2497,17 @@ function renderHoldingsVisuals(rows) {
     switch (String(mode || "")) {
       case "name_asc":
         return list.sort(compareName);
-      case "name_desc":
-        return list.sort((a, b) => compareName(b, a));
-      case "pl_desc":
+      case "profit_desc":
         return list.sort((a, b) => Number(b.unrealizedSort || 0) - Number(a.unrealizedSort || 0));
-      case "pl_asc":
+      case "loss_desc":
         return list.sort((a, b) => Number(a.unrealizedSort || 0) - Number(b.unrealizedSort || 0));
       case "qty_desc":
         return list.sort((a, b) => Number(b.qty || 0) - Number(a.qty || 0));
       case "days_desc":
         return list.sort((a, b) => Number(b.days || 0) - Number(a.days || 0));
-      case "invested_desc":
+      case "value_desc":
       default:
-        return list.sort((a, b) => Number(b.invested || 0) - Number(a.invested || 0));
+        return list.sort((a, b) => Number(b.valueSort || 0) - Number(a.valueSort || 0));
     }
   }
 
@@ -2555,6 +2555,8 @@ function renderHoldingsVisuals(rows) {
           const hasLive = Number.isFinite(ltp) && ltp > 0;
           const currentValue = hasLive ? qty * ltp : null;
           const unrealized = hasLive ? (currentValue - invested) : null;
+          const avgPrice = qty > 0 ? (invested / qty) : 0;
+          const unrealizedPct = hasLive && invested > 0 ? (unrealized / invested) * 100 : null;
           const days = Math.floor(
             (new Date() - parseDateLocal(map[s].cycleFirstBuy)) / 86400000
           );
@@ -2579,12 +2581,15 @@ function renderHoldingsVisuals(rows) {
             stock: s,
             qty,
             invested,
+            avgPrice,
             days,
             hasLive,
             ltp,
             currentValue,
             unrealized,
+            unrealizedPct,
             unrealizedSort: hasLive ? Number(unrealized || 0) : Number.NEGATIVE_INFINITY,
+            valueSort: hasLive ? Number(currentValue || 0) : Number(invested || 0),
             cyclePanelId,
             stockToken,
             cycleHtml
@@ -2593,35 +2598,54 @@ function renderHoldingsVisuals(rows) {
 
         const sortedRows = sortHoldingRows(holdingRows, getHoldingsSortMode());
         sortedRows.forEach(r => {
+          const pnlClass = !r.hasLive ? "text-muted" : (r.unrealized >= 0 ? "profit" : "loss");
+          const pnlText = r.hasLive ? `${r.unrealized >= 0 ? "+" : "-"}₹${Math.abs(r.unrealized).toFixed(2)}` : "LTP unavailable";
+          const pnlPctText = r.hasLive && Number.isFinite(r.unrealizedPct)
+            ? `${r.unrealizedPct >= 0 ? "+" : ""}${r.unrealizedPct.toFixed(2)}%`
+            : "";
           holdingsList.innerHTML += `
-            <div class="txn-card">
-              <div class="holding-head-row">
-                <button type="button" class="holding-name-btn" onclick="toggleHoldingCycle('${r.cyclePanelId}', this)" aria-expanded="false">
-                  <span class="txn-name">${r.stock}</span>
+            <div class="txn-card holding-card-shell ${r.hasLive && r.unrealized < 0 ? "holding-loss-card" : "holding-profit-card"}">
+              <div class="holding-main-row">
+                <div class="holding-title-block">
+                  <div class="txn-name">${r.stock}</div>
+                  <div class="holding-meta-row">
+                    <span>Qty ${r.qty}</span>
+                    <span>Avg ₹${r.avgPrice.toFixed(2)}</span>
+                    <span>Days ${Math.max(0, r.days)}</span>
+                  </div>
+                </div>
+                <div class="holding-pnl-block ${pnlClass}">
+                  <div class="holding-pnl-value">${pnlText}</div>
+                  <div class="holding-pnl-percent">${pnlPctText || "&nbsp;"}</div>
+                </div>
+              </div>
+              <div class="holding-value-grid">
+                <div class="holding-value-cell">
+                  <div class="tiny-label">Invested Value</div>
+                  <div class="holding-value-number">₹${r.invested.toFixed(2)}</div>
+                </div>
+                <div class="holding-value-cell">
+                  <div class="tiny-label">Current Value</div>
+                  <div class="holding-value-number ${r.hasLive ? pnlClass : "text-muted"}">${r.hasLive ? `₹${r.currentValue.toFixed(2)}` : "-"}</div>
+                </div>
+              </div>
+              <div class="holding-market-row">
+                <div class="tiny-label">${r.hasLive ? `LTP ₹${r.ltp.toFixed(2)}` : "LTP unavailable"}</div>
+              </div>
+              <div class="holding-action-row">
+                <button type="button" class="holding-action-btn" onclick="toggleHoldingCycle('${r.cyclePanelId}', this)" aria-expanded="false">
+                  <span>Show Transactions</span>
                   <i class="bi bi-chevron-down"></i>
                 </button>
                 <button
                   type="button"
-                  class="holding-trend-btn"
+                  class="holding-action-btn holding-trend-btn"
                   onclick="openHoldingPriceTrend('${r.stockToken}')"
-                  title="Show last 7 days price trend"
-                  aria-label="Show last 7 days price trend">
+                  title="View price trend"
+                  aria-label="View price trend">
                   <i class="bi bi-graph-up-arrow"></i>
+                  <span>View Details</span>
                 </button>
-              </div>
-              <div class="txn-sub">
-                Qty ${r.qty} |
-                Avg ₹${(r.invested / r.qty).toFixed(2)} |
-                Invested ₹${r.invested.toFixed(2)} |
-                Days ${r.days}
-              </div>
-              <div class="split-row mt-1">
-                <div class="left-col tiny-label">
-                  ${r.hasLive ? `LTP ₹${r.ltp.toFixed(2)} | Value ₹${r.currentValue.toFixed(2)}` : "LTP: -"}
-                </div>
-                <div class="right-col tiny-label ${r.hasLive && r.unrealized >= 0 ? "profit" : "loss"}">
-                  ${r.hasLive ? `U P/L ₹${r.unrealized.toFixed(2)}` : ""}
-                </div>
               </div>
               <div id="${r.cyclePanelId}" class="holding-cycle-wrap" style="display:none">
                 <div class="tiny-label holding-cycle-title">Current cycle transactions</div>
@@ -3059,11 +3083,11 @@ function loadDashboard() {
         if (liveUnrealizedCount > 0) {
           dashUnrealizedEl.classList.remove("text-muted", "profit", "loss");
           dashUnrealizedEl.classList.add(liveUnrealizedTotal >= 0 ? "profit" : "loss");
-          dashUnrealizedEl.textContent = `Live Unrealized: ₹${liveUnrealizedTotal.toFixed(2)}`;
+          dashUnrealizedEl.textContent = `₹${liveUnrealizedTotal.toFixed(2)}`;
         } else {
           dashUnrealizedEl.classList.remove("profit", "loss");
           dashUnrealizedEl.classList.add("text-muted");
-          dashUnrealizedEl.textContent = "Live Unrealized: -";
+          dashUnrealizedEl.textContent = "-";
         }
       }
       if (dashLiveRefreshEl) {
@@ -3072,8 +3096,8 @@ function loadDashboard() {
           : null;
         const hasValidTime = fetchedAt && !Number.isNaN(fetchedAt.getTime());
         dashLiveRefreshEl.textContent = hasValidTime
-          ? `Live refresh: ${fetchedAt.toLocaleString()}`
-          : "Live refresh: -";
+          ? `Price sync: ${fetchedAt.toLocaleString()}`
+          : "Price sync: -";
       }
       const brkgBody = document.getElementById("brokerageBreakdownBody");
       if (brkgBody) {
@@ -3407,16 +3431,25 @@ function renderHomeDashboardVisuals(activeRows, stats) {
     const investedPct = (invested / sum) * 100;
     if (capitalDonutEl) {
       capitalDonutEl.innerHTML = `
-        <div class="adv-donut" style="background:conic-gradient(#2563eb 0% ${investedPct}%, #22c55e ${investedPct}% 100%)"></div>
-        <div class="tiny-label mt-2 text-center">${hasLive ? "Live capital mix" : "Live price unavailable"}</div>
+        <div class="adv-donut adv-donut-home" style="background:conic-gradient(var(--accent) 0% ${investedPct}%, var(--profit) ${investedPct}% 100%)"></div>
+        <div class="tiny-label mt-2 text-center">${hasLive ? "Invested vs current value" : "Live price unavailable"}</div>
       `;
     }
     if (capitalLegendEl) {
       const delta = current - invested;
       capitalLegendEl.innerHTML = `
-        <div class="split-row"><div class="left-col tiny-label"><span class="legend-dot" style="background:#2563eb"></span>Invested</div><div class="right-col tiny-label">₹${invested.toFixed(2)}</div></div>
-        <div class="split-row"><div class="left-col tiny-label"><span class="legend-dot" style="background:#22c55e"></span>Current</div><div class="right-col tiny-label">₹${current.toFixed(2)}</div></div>
-        <div class="split-row"><div class="left-col tiny-label">Live Unrealized</div><div class="right-col tiny-label ${delta >= 0 ? "profit" : "loss"}">₹${delta.toFixed(2)}</div></div>
+        <div class="capital-metric-card">
+          <div class="tiny-label"><span class="legend-dot" style="background:var(--accent)"></span>Invested</div>
+          <div class="capital-metric-value">₹${invested.toFixed(2)}</div>
+        </div>
+        <div class="capital-metric-card">
+          <div class="tiny-label"><span class="legend-dot" style="background:var(--profit)"></span>Current Value</div>
+          <div class="capital-metric-value">₹${current.toFixed(2)}</div>
+        </div>
+        <div class="capital-metric-card">
+          <div class="tiny-label"><span class="legend-dot" style="background:${delta >= 0 ? "var(--profit)" : "var(--loss)"}"></span>Unrealized</div>
+          <div class="capital-metric-value ${delta >= 0 ? "profit" : "loss"}">₹${delta.toFixed(2)}</div>
+        </div>
       `;
     }
   }
@@ -3434,8 +3467,8 @@ function renderHomeDashboardVisuals(activeRows, stats) {
           return `
             <div class="adv-bar-row">
               <div class="adv-bar-label">${r.stock}</div>
-              <div class="adv-bar-track"><div class="adv-bar" style="width:${width}%;background:linear-gradient(90deg,#2563eb,#38bdf8)"></div></div>
-              <div class="adv-bar-value">${allocPct.toFixed(2)}%</div>
+              <div class="adv-bar-track"><div class="adv-bar" style="width:${width}%;background:linear-gradient(90deg,var(--accent), color-mix(in oklab, var(--accent) 56%, white))"></div></div>
+              <div class="adv-bar-value">${allocPct.toFixed(1)}%</div>
             </div>
           `;
         }).join("");

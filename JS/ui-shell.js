@@ -33,18 +33,18 @@
 
   function buildNavItems() {
     return [
-      { href: "index.html", icon: "bi-house-door", label: "Home" },
-      { href: "Transactions.html", icon: "bi-journal-check", label: "Transactions" },
-      { href: "Holdings.html", icon: "bi-pie-chart", label: "Holdings" },
-      { href: "Pnl.html", icon: "bi-graph-up", label: "P/L" },
-      { href: "Insights.html", icon: "bi-stars", label: "Insights" },
-      { href: "Advanced.html", icon: "bi-speedometer2", label: "Advanced" },
-      { href: "Discipline.html", icon: "bi-shield-check", label: "Coach" },
-      { href: "Advisor.html", icon: "bi-robot", label: "Advisor" },
-      { href: "Debt.html", icon: "bi-wallet2", label: "Debt" },
-      { href: "Expenses.html", icon: "bi-receipt-cutoff", label: "Expenses" },
-      { href: "StockMappings.html", icon: "bi-link-45deg", label: "Stock Mapping" },
-      { href: "Settings.html", icon: "bi-sliders", label: "Settings" }
+      { href: "index.html", icon: "bi-house-door", label: "Home", section: "Portfolio" },
+      { href: "Transactions.html", icon: "bi-journal-check", label: "Transactions", section: "Portfolio" },
+      { href: "Holdings.html", icon: "bi-pie-chart", label: "Holdings", section: "Portfolio" },
+      { href: "Pnl.html", icon: "bi-graph-up", label: "P/L", section: "Portfolio" },
+      { href: "Insights.html", icon: "bi-stars", label: "Insights", section: "Portfolio" },
+      { href: "Advanced.html", icon: "bi-speedometer2", label: "Advanced", section: "Portfolio" },
+      { href: "Discipline.html", icon: "bi-shield-check", label: "Coach", section: "Guidance" },
+      { href: "Advisor.html", icon: "bi-robot", label: "Advisor", section: "Guidance" },
+      { href: "Debt.html", icon: "bi-wallet2", label: "Debt", section: "Finance" },
+      { href: "Expenses.html", icon: "bi-receipt-cutoff", label: "Expenses", section: "Finance" },
+      { href: "StockMappings.html", icon: "bi-link-45deg", label: "Stock Mapping", section: "Admin" },
+      { href: "Settings.html", icon: "bi-sliders", label: "Settings", section: "Admin" }
     ];
   }
 
@@ -238,14 +238,37 @@
     drawer.className = "app-shell-drawer";
     drawer.id = "appShellDrawer";
 
-    var navHtml = navItems
-      .map(function (item) {
-        var active = file === String(item.href || "").toLowerCase() ? "active" : "";
+    var navGroups = navItems.reduce(function (acc, item) {
+      var key = String(item.section || "General");
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(item);
+      return acc;
+    }, {});
+
+    var navHtml = Object.keys(navGroups)
+      .map(function (groupName, index) {
+        var sectionId = "appShellNavSection" + index;
+        var links = navGroups[groupName]
+          .map(function (item) {
+            var active = file === String(item.href || "").toLowerCase() ? "active" : "";
+            return (
+              '<a class="' + active + '" href="' + item.href + '">' +
+                '<i class="bi ' + item.icon + '"></i>' +
+                "<span>" + item.label + "</span>" +
+              "</a>"
+            );
+          })
+          .join("");
         return (
-          '<a class="' + active + '" href="' + item.href + '">' +
-            '<i class="bi ' + item.icon + '"></i>' +
-            "<span>" + item.label + "</span>" +
-          "</a>"
+          '<div class="app-shell-nav-group">' +
+            '<button type="button" class="app-shell-nav-toggle" aria-expanded="false" aria-controls="' + sectionId + '">' +
+              '<span class="app-shell-nav-label">' + groupName + "</span>" +
+              '<i class="bi bi-chevron-down app-shell-nav-chevron" aria-hidden="true"></i>' +
+            "</button>" +
+            '<div class="app-shell-nav-links" id="' + sectionId + '" hidden>' +
+              links +
+            "</div>" +
+          "</div>"
         );
       })
       .join("");
@@ -341,6 +364,17 @@
 
     drawer.querySelectorAll("a[href]").forEach(function (lnk) {
       lnk.addEventListener("click", closeDrawer);
+    });
+
+    drawer.querySelectorAll(".app-shell-nav-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var targetId = btn.getAttribute("aria-controls");
+        var panel = targetId ? document.getElementById(targetId) : null;
+        if (!panel) return;
+        var expanded = btn.getAttribute("aria-expanded") === "true";
+        btn.setAttribute("aria-expanded", expanded ? "false" : "true");
+        panel.hidden = expanded;
+      });
     });
 
     var profileBtn = document.getElementById("appShellProfileBtn");

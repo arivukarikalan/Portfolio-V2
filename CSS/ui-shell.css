@@ -9,9 +9,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 14px;
+  min-height: 56px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
-  background: var(--card);
+  background: color-mix(in oklab, var(--card) 92%, #eef4ff);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
 }
 
 .app-shell-left {
@@ -23,7 +25,7 @@
 
 .app-shell-title {
   font-weight: 800;
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -33,15 +35,16 @@
 
 .app-shell-menu-btn,
 .app-shell-action-btn {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--card-soft);
+  background: color-mix(in oklab, var(--card-soft) 88%, #eef4ff);
   color: var(--text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
 }
 
 .app-shell-right {
@@ -118,7 +121,8 @@
   z-index: 13100;
   transform: translateX(-102%);
   transition: transform .2s ease;
-  background: var(--card);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--card) 90%, #eef4ff), var(--card) 28%, var(--card));
   border-right: 1px solid var(--border);
   box-shadow: 0 14px 38px rgba(2, 8, 23, 0.2);
   display: flex;
@@ -130,8 +134,9 @@
 }
 
 .app-shell-drawer-head {
-  padding: 14px;
+  padding: 12px;
   border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--card) 92%, #edf3ff);
 }
 
 .app-shell-brand-row {
@@ -144,6 +149,7 @@
 .app-shell-brand {
   font-weight: 900;
   font-size: 1rem;
+  letter-spacing: -0.01em;
 }
 
 .app-shell-close-btn {
@@ -160,8 +166,12 @@
 
 .app-shell-user {
   margin-top: 4px;
-  font-size: .86rem;
-  color: var(--muted);
+  font-size: .84rem;
+  color: color-mix(in oklab, var(--muted) 88%, var(--text));
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-shell-user-row {
@@ -181,6 +191,65 @@
 .app-shell-nav {
   padding: 10px;
   overflow: auto;
+  display: grid;
+  gap: 12px;
+}
+
+.app-shell-nav-group {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--card) 94%, #f4f8ff);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+}
+
+.app-shell-nav-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  padding: 2px 4px 4px;
+  border-radius: 12px;
+}
+
+.app-shell-nav-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.app-shell-nav-chevron {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--card) 82%, #dce9ff);
+  transition: transform 0.18s ease;
+}
+
+.app-shell-nav-toggle[aria-expanded="true"] .app-shell-nav-chevron {
+  transform: rotate(180deg);
+}
+
+.app-shell-nav-links {
+  display: grid;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.app-shell-nav-links[hidden] {
+  display: none;
 }
 
 .app-shell-nav a {
@@ -190,20 +259,85 @@
   text-decoration: none;
   color: var(--text);
   border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 6px;
-  font-weight: 600;
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-weight: 700;
+  background: transparent;
+  transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
 
 .app-shell-nav a.active {
-  background: color-mix(in oklab, var(--card-soft) 74%, var(--blue));
-  border-color: color-mix(in oklab, var(--border) 72%, var(--blue));
+  background: linear-gradient(135deg, color-mix(in oklab, var(--accent) 18%, white), color-mix(in oklab, var(--accent) 10%, var(--card)));
+  border-color: color-mix(in oklab, var(--accent) 32%, var(--border));
   color: var(--text);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.24);
 }
 
 .app-shell-nav a:hover {
-  background: color-mix(in oklab, var(--card-soft) 85%, var(--blue));
+  background: color-mix(in oklab, var(--card-soft) 88%, #e7f0ff);
+  border-color: color-mix(in oklab, var(--border) 74%, var(--accent));
+  transform: translateX(2px);
+}
+
+.app-shell-nav a i {
+  width: 18px;
+  text-align: center;
+  color: color-mix(in oklab, var(--text) 82%, var(--accent));
+}
+
+.app-shell-nav a span {
+  flex: 1;
+}
+
+body.dark .app-shell-topbar {
+  background: color-mix(in oklab, var(--card) 90%, #13223a);
+  box-shadow: 0 12px 26px rgba(2, 8, 20, 0.42);
+}
+
+body.dark .app-shell-menu-btn,
+body.dark .app-shell-action-btn,
+body.dark .app-shell-close-btn {
+  background: color-mix(in oklab, var(--card) 88%, #182a46);
+  border-color: color-mix(in oklab, var(--border) 82%, #315180);
+}
+
+body.dark .app-shell-drawer {
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--card) 90%, #13223a), var(--card) 34%, var(--card));
+}
+
+body.dark .app-shell-drawer-head {
+  background: color-mix(in oklab, var(--card) 90%, #13223a);
+}
+
+body.dark .app-shell-nav-group {
+  background: color-mix(in oklab, var(--card) 92%, #13223a);
+  border-color: color-mix(in oklab, var(--border) 82%, #29466f);
+  box-shadow: 0 10px 22px rgba(2, 8, 20, 0.22);
+}
+
+body.dark .app-shell-nav-chevron {
+  background: color-mix(in oklab, var(--card) 82%, #1b3153);
+  color: #bfd4f1;
+}
+
+body.dark .app-shell-nav a {
+  color: #e7effc;
+}
+
+body.dark .app-shell-nav a.active {
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.24), rgba(96, 165, 250, 0.12));
+  border-color: rgba(96, 165, 250, 0.34);
+}
+
+body.dark .app-shell-nav a:hover {
+  background: color-mix(in oklab, var(--card) 86%, #193153);
+}
+
+body.dark .app-shell-nav a i,
+body.dark .app-shell-user,
+body.dark .app-shell-nav-label {
+  color: #bfd0e8;
 }
 
 /* hide legacy navigation to avoid clutter */
@@ -213,7 +347,7 @@
 }
 
 body.app-shell-legacy-hide {
-  padding-top: 62px !important;
+  padding-top: 58px !important;
   padding-bottom: 16px !important;
 }
 
@@ -223,12 +357,12 @@ body.app-shell-legacy-hide .container.page-shell {
 
 @media (max-width: 420px) {
   body.app-shell-legacy-hide {
-    padding-top: 66px !important;
+    padding-top: 60px !important;
   }
 }
 
 /* Keep toasts visible below fixed shell topbar */
 body.app-shell-legacy-hide .toast-host {
-  top: calc(70px + env(safe-area-inset-top, 0px)) !important;
+  top: calc(64px + env(safe-area-inset-top, 0px)) !important;
   z-index: 15050 !important;
 }

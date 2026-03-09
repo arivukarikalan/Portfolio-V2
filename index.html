@@ -3,27 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <title>Portfolio</title>
-
-  <!-- =====================================================
-       FEATURE: External UI Libraries
-       PURPOSE:
-       - Bootstrap for layout & utilities
-       - Bootstrap Icons for navigation & actions
-       ===================================================== -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="Assets/Icons/app-favicon.svg">
-  <!-- ====================================================
-       FEATURE: Application UI Style
-       ===================================================== -->
   <link href="CSS/ui.css" rel="stylesheet">
   <link href="CSS/ui-theme.css" rel="stylesheet">
   <link href="CSS/ui-improvements.css" rel="stylesheet">
   <link href="CSS/ui-shell.css" rel="stylesheet">
   <link href="CSS/advanced.css" rel="stylesheet">
-  <script src="JS/common-ui.js"></script>
-  <script src="JS/ui-shell.js"></script>
+  <script src="JS/common-ui.js" defer></script>
+  <script src="JS/ui-shell.js" defer></script>
 </head>
 
 <body class="page-home">
@@ -47,72 +38,112 @@
      FEATURE: Dashboard Content
      ===================================================== -->
 <div class="container page-shell">
-
-  <section class="hero">
-    <h2 class="hero-title">Portfolio Pulse</h2>
-    <p class="hero-sub">Your capital, realised P/L, and live exposure in one mobile snapshot.</p>
-  </section>
-
-  <section class="panel mt-3">
-    <div class="panel-head">
-      <h3 class="panel-title"><i class="bi bi-bar-chart-line"></i> Portfolio Trends</h3>
-    </div>
-    <div class="panel-body tight">
-      <div class="tiny-label mb-1">Stocks in L1 / L2 Zone</div>
-      <div id="homeZoneStocks" class="chart-wrap mb-2"></div>
-      <div class="tiny-label mb-1">Capital View (Invested vs Current)</div>
-      <div class="alloc-layout mb-2">
-        <div id="homeCapitalDonut"></div>
-        <div id="homeCapitalLegend" class="stack-gap"></div>
+  <section class="home-v3-board">
+    <header class="home-v3-head">
+      <div>
+        <h2 class="home-v3-title">Dashboard</h2>
+        <p class="home-v3-sub">Capital, P/L, and exposure in one view</p>
       </div>
-      <div class="tiny-label mb-1">Top Holdings (Invested)</div>
-      <div id="homeTopHoldingsBars" class="chart-wrap"></div>
-      <div id="homeInsight" class="text-muted mt-2 small"></div>
+      <div class="home-v3-search-wrap">
+        <i class="bi bi-search"></i>
+        <input class="home-v3-search" type="search" placeholder="Search stock, metric, or page">
+      </div>
+    </header>
+
+    <div class="home-v3-layout">
+      <main class="home-v3-main">
+        <div class="home-v3-kpis">
+          <article class="home-v3-kpi">
+            <div class="home-v3-kpi-label">Total Invested</div>
+            <div class="home-v3-kpi-value data-highlight" id="dashInvested">&#8377;0.00</div>
+          </article>
+          <article class="home-v3-kpi">
+            <div class="home-v3-kpi-label">Total P / L</div>
+            <div class="home-v3-kpi-value data-highlight" id="dashPnL">&#8377;0.00</div>
+            <div class="tiny-label mt-1" id="dashReturn">0.00% return in 3 Months</div>
+          </article>
+          <article class="home-v3-kpi">
+            <div class="home-v3-kpi-label">Active Holdings</div>
+            <div class="home-v3-kpi-value data-highlight" id="dashHoldings">0</div>
+          </article>
+          <article class="home-v3-kpi metric-link" id="dashTotalLossCard" onclick="location.href='LossReport.html'">
+            <div class="home-v3-kpi-label">Loss Summary</div>
+            <div class="home-v3-loss-row">
+              <span>Realized Loss</span>
+              <span class="data-negative" id="dashTotalLoss">&#8377;0.00</span>
+            </div>
+            <div class="home-v3-loss-row">
+              <span>Unrealized Loss</span>
+              <span id="dashUnrealizedLoss" class="text-muted">-</span>
+            </div>
+            <div class="tiny-label mt-1" id="dashLivePriceRefresh">Price sync: -</div>
+          </article>
+        </div>
+
+        <section class="home-v3-panel">
+          <div class="home-v3-panel-head">
+            <h3><i class="bi bi-pie-chart"></i> Capital Overview</h3>
+          </div>
+          <div class="home-v3-panel-body">
+            <div class="alloc-layout alloc-layout-home">
+              <div id="homeCapitalDonut"></div>
+            </div>
+            <div id="homeCapitalLegend" class="stack-gap capital-metrics-grid mt-2"></div>
+          </div>
+        </section>
+
+        <section class="home-v3-panel">
+          <div class="home-v3-panel-head">
+            <h3><i class="bi bi-bar-chart-line"></i> Top Holdings</h3>
+          </div>
+          <div class="home-v3-panel-body">
+            <div id="homeTopHoldingsBars" class="chart-wrap chart-wrap-thick"></div>
+          </div>
+        </section>
+
+        <section class="home-v3-panel">
+          <div class="home-v3-panel-head">
+            <h3><i class="bi bi-bullseye"></i> L1 / L2 Watch</h3>
+          </div>
+          <div class="home-v3-panel-body">
+            <div id="homeZoneStocks" class="chart-wrap"></div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="home-v3-side">
+        <section class="home-v3-side-card">
+          <div class="home-v3-side-title">Account</div>
+          <div class="home-v3-user">
+            <div class="home-v3-avatar"><i class="bi bi-person"></i></div>
+            <div>
+              <div class="home-v3-user-name">Portfolio User</div>
+              <div class="tiny-label">Live portfolio status</div>
+            </div>
+          </div>
+          <div id="homeInsight" class="tiny-label mt-2"></div>
+        </section>
+
+        <section class="home-v3-side-card">
+          <div class="home-v3-side-title">Finance</div>
+          <div class="home-v3-finance-grid">
+            <div class="home-v3-finance-item metric-link" onclick="toggleBrokerageBreakdown()">
+              <div class="tiny-label">Brokerage</div>
+              <div class="home-v3-finance-value" id="dashBrokerage">&#8377;0.00</div>
+            </div>
+            <div class="home-v3-finance-item metric-link" onclick="location.href='Debt.html'">
+              <div class="tiny-label">Debt</div>
+              <div class="home-v3-finance-link">Open</div>
+            </div>
+            <div class="home-v3-finance-item metric-link" onclick="location.href='Expenses.html'">
+              <div class="tiny-label">Expenses</div>
+              <div class="home-v3-finance-link">Open</div>
+            </div>
+          </div>
+        </section>
+      </aside>
     </div>
   </section>
-
-  <!-- Section title -->
-  <div class="section-title">Portfolio Dashboard</div>
-
-  <!-- =================================================
-       FEATURE: Dashboard Stats (2 cards per row)
-       ================================================= -->
-  <div class="stat-grid">
-
-    <!-- Total Invested -->
-    <div class="stat-card">
-      <div class="stat-label">Total Invested</div>
-      <div class="stat-value data-highlight" id="dashInvested">&#8377;0.00</div>
-    </div>
-
-    <!-- Total Loss Booked (clickable -> Loss Report) -->
-    <div class="stat-card metric-link" id="dashTotalLossCard" onclick="location.href='LossReport.html'">
-      <div class="stat-label">Total Loss Booked</div>
-      <div class="loss-booked-mini data-negative" id="dashTotalLoss">&#8377;0.00</div>
-      <div class="unrealized-hero text-muted" id="dashUnrealizedLoss">Live Unrealized: -</div>
-      <div class="tiny-label mt-1 text-muted" id="dashLivePriceRefresh">Live refresh: -</div>
-      <div class="tiny-label mt-1">Tap to view loss details</div>
-    </div>
-
-    <!-- Total Profit / Loss -->
-    <div class="stat-card">
-      <div class="stat-label">Total P / L</div>
-      <div class="stat-value data-highlight" id="dashPnL">&#8377;0.00</div>
-      <div class="tiny-label mt-1" id="dashReturn">0.00% return in 3 Months</div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-label">Active Holdings</div>
-      <div class="stat-value data-highlight" id="dashHoldings">0</div>
-    </div>
-
-    <div class="stat-card metric-link" onclick="toggleBrokerageBreakdown()">
-      <div class="stat-label">Brokerage Spent</div>
-      <div class="stat-value data-highlight" id="dashBrokerage">&#8377;0.00</div>
-      <div class="tiny-label mt-1">Tap for stock-wise split</div>
-    </div>
-
-  </div>
 
   <section class="panel mt-3" id="brokeragePanel" style="display:none">
     <div class="panel-head">
@@ -132,16 +163,6 @@
           <tbody id="brokerageBreakdownBody"></tbody>
         </table>
       </div>
-    </div>
-  </section>
-
-  <section class="panel mt-3" onclick="location.href='Debt.html'" style="cursor:pointer">
-    <div class="panel-body d-flex justify-content-between align-items-center">
-      <div>
-        <div class="section-title mt-0 mb-1">Debt Management</div>
-        <div class="text-muted">Track borrowings, repayments, and outstanding closure plan</div>
-      </div>
-      <i class="bi bi-chevron-right fs-4"></i>
     </div>
   </section>
 
